@@ -111,7 +111,7 @@ class LotCollection:
             return
         existing = self.lots.get(lot.id)
         if (existing is None):
-            return
+            self.lots[lot.id] = lot
         elif (lot.timestamp > existing.timestamp):
             self.lots[lot.id] = lot
     
@@ -211,6 +211,7 @@ def get_parking_status_around_taipei(s: requests.Session, verbose: bool = True) 
                     log(f'Failed at ({point.x}, {point.y}).')
 
                 sleep(SPACING)
+    log(f'Completed collecting {len(lots.lots)} parking lots.')
     return lots
 
 def get_parking_status_at(s: requests.Session, lon: float, lat: float, **kwargs) -> LotCollection:
@@ -302,6 +303,21 @@ def handshake(s: requests.Session, verbose: bool = False) -> bool:
         return False
     return True
 
+def init_log() -> None:
+    log_dir = './script/log'
+    os.makedirs(log_dir, exist_ok=True)
+
+    log_path = os.path.join(log_dir, 'crawler.txt')
+    prev_path = os.path.join(log_dir, 'crawler_prev.txt')
+
+    if os.path.exists(log_path):
+        if os.path.exists(prev_path):
+            os.remove(prev_path)
+        os.rename(log_path, prev_path)
+
+    with open(log_path, 'w', encoding='utf-8') as f:
+        f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Initiated the new log.\n")
+
 def log(msg: Any) -> None:
     '''
     Log the message with a timestamp.
@@ -315,6 +331,19 @@ def log(msg: Any) -> None:
     log_path = os.path.join(log_dir, 'crawler.txt')
     with open(log_path, 'a', encoding='utf-8') as f:
         f.write(msg_str + '\n')
+
+def main(max_runs: int | None = None):
+    try:
+        count = 0
+        while True:
+            save_data()
+            sleep(SPACING)
+            count += 1
+            if max_runs and count >= max_runs:
+                log('Reached maximum runs. Exiting...')
+                break
+    except KeyboardInterrupt:
+        log('Terminated by user (Ctrl+C). Exiting gracefully...')
 
 def save_data() -> None:
     '''
@@ -400,6 +429,12 @@ def retry_api_call(s: requests.Session, lon: float, lat: float, retry: int) -> b
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Access Taipei City\'s roadside parking vacancy API and save them as GeoJSON.')
-    while True:
-        save_data()
-        sleep(SPACING)
+    parser.add_argument(
+        '--run', '-r',
+        type=int,
+        default=1,
+        help='The number of runs. Leave it 0 to loop forever.'
+    )
+    args = parser.parse_args()
+    init_log()
+    main()
