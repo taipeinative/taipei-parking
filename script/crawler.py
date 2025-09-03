@@ -1,7 +1,7 @@
 import argparse
 from bs4 import BeautifulSoup, Tag
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from json import dump
 import os
 import requests
@@ -31,6 +31,11 @@ HEADER = {'Accept': 'application/json;charset=utf-8',
           'Sec-Fetch-User': '?1',
           'Upgrade-Insecure-Requests': '1',
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36'}
+
+GROUP_1 = [(121.468, 25.125), (121.476, 25.133), (121.484, 25.141), (121.5, 25.141), (121.492, 25.133), (121.516, 25.141), (121.5, 25.125), (121.516, 25.109), (121.532, 25.125), (121.548, 25.141), (121.492, 25.149), (121.508, 25.133), (121.524, 25.149), (121.548, 25.157), (121.524, 25.133), (121.508, 25.117), (121.524, 25.117), (121.532, 25.109), (121.54, 25.117), (121.508, 25.149), (121.54, 25.133), (121.516, 25.125), (121.468, 25.109), (121.5, 25.109), (121.524, 25.101), (121.54, 25.101), (121.548, 25.109), (121.556, 25.117), (121.556, 25.101), (121.582, 25.118), (121.564, 25.109), (121.508, 25.101), (121.492, 25.101)]
+GROUP_2 = [(121.532, 25.093), (121.508, 25.085), (121.516, 25.093), (121.5, 25.093), (121.548, 25.093), (121.524, 25.085), (121.516, 25.077), (121.508, 25.069), (121.524, 25.069), (121.516, 25.061), (121.508, 25.053), (121.524, 25.053), (121.516, 25.045), (121.508, 25.037), (121.524, 25.037), (121.492, 25.037), (121.5, 25.045), (121.556, 25.085), (121.564, 25.093), (121.532, 25.061), (121.54, 25.069), (121.532, 25.077), (121.54, 25.085), (121.548, 25.077), (121.548, 25.061), (121.54, 25.053), (121.532, 25.045), (121.548, 25.045), (121.54, 25.037), (121.564, 25.077), (121.556, 25.053), (121.556, 25.069), (121.556, 25.037)]
+GROUP_3 = [(121.516, 25.029), (121.508, 25.021), (121.524, 25.021), (121.548, 25.013), (121.5, 25.013), (121.5, 25.029), (121.484, 25.029), (121.492, 25.021), (121.532, 25.029), (121.548, 25.029), (121.54, 25.021), (121.532, 25.013), (121.54, 25.005), (121.532, 24.997), (121.54, 24.989), (121.548, 24.997), (121.548, 24.981), (121.556, 25.005), (121.556, 24.989), (121.556, 24.973), (121.564, 25.013), (121.564, 24.997), (121.564, 24.981), (121.572, 25.005), (121.572, 24.989), (121.58, 24.997), (121.58, 24.981), (121.588, 25.005), (121.588, 24.989), (121.588, 24.973), (121.596, 24.997), (121.556, 25.021), (121.58, 25.013)]
+GROUP_4 = [(121.572, 25.021), (121.564, 25.029), (121.58, 25.029), (121.564, 25.045), (121.564, 25.061), (121.572, 25.037), (121.572, 25.053), (121.58, 25.045), (121.572, 25.069), (121.572, 25.085), (121.58, 25.077), (121.58, 25.061), (121.588, 25.069), (121.588, 25.085), (121.588, 25.053), (121.588, 25.037), (121.58, 25.093), (121.596, 25.077), (121.596, 25.061), (121.596, 25.045), (121.604, 25.053), (121.604, 25.069), (121.604, 25.085), (121.612, 25.077), (121.612, 25.061), (121.612, 25.045), (121.604, 25.037), (121.62, 25.037), (121.62, 25.053), (121.62, 25.069), (121.596, 25.093), (121.628, 25.077), (121.612, 25.029)]
 
 SEARCH_BOUND = 'POLYGON ((121.460502 25.121926, 121.463677 25.108015, 121.489634 25.097786, 121.506113 25.07742, 121.503074 25.052199, 121.484448 25.034081, 121.492259 25.010904, 121.49904 25.010281, 121.510112 25.020937, 121.519811 25.018915, 121.53423 25.002192, 121.533544 24.996591, 121.537578 24.992079, 121.536204 24.989512, 121.538608 24.987722, 121.544787 24.987178, 121.544702 24.983833, 121.548049 24.983132, 121.551568 24.984922, 121.551482 24.986789, 121.554143 24.984066, 121.552856 24.979476, 121.554572 24.976052, 121.559979 24.97683, 121.588218 24.98321, 121.590793 24.987878, 121.588304 25.001492, 121.577661 25.015182, 121.576459 25.025759, 121.595084 25.036725, 121.614396 25.032292, 121.624524 25.039135, 121.617143 25.049633, 121.625125 25.05562, 121.617143 25.06394, 121.621005 25.070159, 121.624438 25.080033, 121.601522 25.091926, 121.586244 25.089827, 121.575858 25.088273, 121.557834 25.093014, 121.559293 25.111279, 121.542556 25.109803, 121.536805 25.130086, 121.518781 25.129309, 121.512343 25.134437, 121.519038 25.14213, 121.505305 25.147335, 121.494577 25.15021, 121.475436 25.141974, 121.466081 25.132106, 121.460502 25.121926))'
 search_geometry = shapely.from_wkt(SEARCH_BOUND, on_invalid='ignore')
@@ -189,29 +194,55 @@ def get_bbox_info() -> tuple[float, float, int, int]:
     minx, miny, maxx, maxy = search_geometry.bounds
     return (minx, miny, int((maxx - minx) // XSTEP) + 1, int((maxy - miny) // YSTEP) + 1)
 
-def get_parking_status_around_taipei(s: requests.Session, verbose: bool = True) -> LotCollection:
+def get_parking_status_around_taipei(s: requests.Session, group: int = 0, verbose: bool = True) -> LotCollection:
     '''
     Retrieve the parking lot status around Taipei.
     '''
     lots = LotCollection(datetime.now())
     count = 0
-    x0, y0, x_step_count, y_step_count = get_bbox_info()
-    for dx in range(x_step_count + 1):
-        for dy in range(y_step_count + 1):
-            point = shapely.Point(x0 + dx * XSTEP, y0 + dy * YSTEP)
-            if (search_geometry.contains(point)):
-                count += 1
-                if (verbose):
-                    log(f'Collecting... [{count}/1004]')
-                
-                try:
-                    sub_lots = get_parking_status_at(s, point.x, point.y)
-                    lots = lots.merge(sub_lots)
-                except:
-                    log(f'Failed at ({point.x}, {point.y}).')
+    if (group == 0):
+        x0, y0, x_step_count, y_step_count = get_bbox_info()
+        for dx in range(x_step_count + 1):
+            for dy in range(y_step_count + 1):
+                point = shapely.Point(x0 + dx * XSTEP, y0 + dy * YSTEP)
+                if (search_geometry.contains(point)):
+                    count += 1
+                    if (verbose):
+                        log(f'Collecting... [{count}/1004]', group)
+                    
+                    try:
+                        sub_lots = get_parking_status_at(s, point.x, point.y)
+                        lots = lots.merge(sub_lots)
+                    except:
+                        log(f'Failed at ({point.x}, {point.y}).', group)
 
-                sleep(SPACING)
-    log(f'Completed collecting {len(lots.lots)} parking lots.')
+                    sleep(SPACING)
+    else:
+        coords: list[tuple[float, float]]
+        match group:
+            case 1:
+                coords = GROUP_1
+            case 2:
+                coords = GROUP_2
+            case 3:
+                coords = GROUP_3
+            case 4:
+                coords = GROUP_4
+            case _:
+                coords = []
+        
+        for px, py in coords:
+            count += 1
+            if (verbose):
+                log(f'Collecting... [{count}/{len(coords)}]', group)
+            try:
+                sub_lots = get_parking_status_at(s, px, py)
+                lots = lots.merge(sub_lots)
+            except:
+                log(f'Failed at ({px}, {py}).', group)
+            sleep(SPACING)
+
+    log(f'Completed collecting {len(lots.lots)} parking lots.', group)
     return lots
 
 def get_parking_status_at(s: requests.Session, lon: float, lat: float, **kwargs) -> LotCollection:
@@ -246,7 +277,7 @@ def get_parking_status_at(s: requests.Session, lon: float, lat: float, **kwargs)
 
     return lots
 
-def handshake(s: requests.Session, verbose: bool = False) -> bool:
+def handshake(s: requests.Session, group: int = 0, verbose: bool = False) -> bool:
     '''
     Perform the handshake to make sure the API interface is accessible.
 
@@ -264,30 +295,30 @@ def handshake(s: requests.Session, verbose: bool = False) -> bool:
         `True` if the handshake was success, and `False` if it failed.
     '''
     if (verbose):
-        log('Start the handshake...')
+        log('Start the handshake...', group)
     raw = s.get(BASEURL, headers=BASEHEADER)
 
     # Test 1: the base website
     if (not raw.ok):
-        log(f'Failed test 1-1: Error when setting up connection. (status code: {raw.status_code} - {raw.reason})')
+        log(f'Failed test 1-1: Error when setting up connection. (status code: {raw.status_code} - {raw.reason})', group)
         return False
     bs = BeautifulSoup(raw.text, 'html.parser')
     if (not isinstance(bs.title, Tag)):
-        log(f'Failed test 1-2: There\'s no title tag.')
+        log(f'Failed test 1-2: There\'s no title tag.', group)
         return False
     elif ('北市好停車' not in bs.title.text):
-        log(f'Failed test 1-3: Possibly invalid website.')
+        log(f'Failed test 1-3: Possibly invalid website.', group)
         return False
     token_tag = bs.select_one('input[name="__RequestVerificationToken"]')
     if (not isinstance(token_tag, Tag)):
-        log(f'Failed test 1-4: There\'s no token input tag, or the token tag has changed.')
+        log(f'Failed test 1-4: There\'s no token input tag, or the token tag has changed.', group)
         return False
     elif ('value' not in token_tag.attrs):
-        log(f'Failed test 1-5: There\'s no value in the token tag.')
+        log(f'Failed test 1-5: There\'s no value in the token tag.', group)
         return False
     token = str(token_tag.attrs['value'])
     if (verbose):
-        log(f'Successfully retrieved the CSRF token. ({token[:6]}...{token[-6:]})')
+        log(f'Successfully retrieved the CSRF token. ({token[:6]}...{token[-6:]})', group)
     
     s.headers.update(HEADER)
     s.headers.update({'X-CSRF-TOKEN': token})
@@ -295,21 +326,25 @@ def handshake(s: requests.Session, verbose: bool = False) -> bool:
 
     # Test 2: the API interface
     if (not raw.ok):
-        log(f'Failed test 2-1: Error when accessing the API. It may be token\'s problem! (status code: {raw.status_code} - {raw.reason})')
+        log(f'Failed test 2-1: Error when accessing the API. It may be token\'s problem! (status code: {raw.status_code} - {raw.reason})', group)
         return False
     
     elif (not isinstance(raw.json(), list)):
-        log(f'Failed test 2-2: The returned JSON is not a list.')
+        log(f'Failed test 2-2: The returned JSON is not a list.', group)
         return False
     return True
 
-def init_log() -> None:
+def init_log(group: Optional[int]) -> None:
     log_dir = './script/log'
     os.makedirs(log_dir, exist_ok=True)
 
-    log_path = os.path.join(log_dir, 'crawler.txt')
-    prev_path = os.path.join(log_dir, 'crawler_prev.txt')
-
+    if (group is None) or (group == 0):
+        log_path = os.path.join(log_dir, 'crawler.txt')
+        prev_path = os.path.join(log_dir, 'crawler_prev.txt')
+    else:
+        log_path = os.path.join(log_dir, f'crawler_g{group}.txt')
+        prev_path = os.path.join(log_dir, f'crawler_g{group}_prev.txt')
+    
     if os.path.exists(log_path):
         if os.path.exists(prev_path):
             os.remove(prev_path)
@@ -318,7 +353,7 @@ def init_log() -> None:
     with open(log_path, 'w', encoding='utf-8') as f:
         f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Initiated the new log.\n")
 
-def log(msg: Any) -> None:
+def log(msg: Any, group: int = 0) -> None:
     '''
     Log the message with a timestamp.
     '''
@@ -328,35 +363,44 @@ def log(msg: Any) -> None:
     log_dir = './script/log'
     os.makedirs(log_dir, exist_ok=True)
 
-    log_path = os.path.join(log_dir, 'crawler.txt')
+    if (group == 0):
+        log_path = os.path.join(log_dir, 'crawler.txt')
+    else:
+        log_path = os.path.join(log_dir, f'crawler_g{group}.txt')
     with open(log_path, 'a', encoding='utf-8') as f:
         f.write(msg_str + '\n')
 
-def main(max_runs: int | None = None):
+def main(max_runs: Optional[int] = None, group: Optional[int] = 0):
+    g = 0 if group is None else group
     try:
         count = 0
         while True:
-            save_data()
-            sleep(SPACING)
+            log(f'Running group {g} now...', g)
+            save_data(g)
             count += 1
             if max_runs and count >= max_runs:
-                log('Reached maximum runs. Exiting...')
+                log('Reached maximum runs. Exiting...', g)
                 break
+            wait()
     except KeyboardInterrupt:
-        log('Terminated by user (Ctrl+C). Exiting gracefully...')
+        log('Terminated by user (Ctrl+C). Exiting gracefully...', g)
 
-def save_data() -> None:
+def save_data(group: int = 0) -> None:
     '''
     Open a session and save the data.
     '''
     s = requests.Session()
     if (not handshake(s, verbose=True)):
-        log('The handshake failed. Terminating the process...')
+        log('The handshake failed. Terminating the process...', group)
         return
-    lots = get_parking_status_around_taipei(s, verbose=True)
+    lots = get_parking_status_around_taipei(s, group, verbose=True)
     time_str = datetime.now().strftime('%u-%H-%M-%S (%Y-%m-%d)')
-    lots.to_geojson_file(f'./data/{time_str}.geojson')
-    log(f'The result was saved to {time_str}.geojson.')
+    if (group == 0):
+        lots.to_geojson_file(f'./data/{time_str}.geojson')
+        log(f'The result was saved to {time_str}.geojson.', group)
+    else:
+        lots.to_geojson_file(f'./data/{time_str}({group}).geojson')
+        log(f'The result was saved to {time_str}({group}).geojson.', group)
 
 def parse_lot_info(text: dict[str, Any], timestamp: Optional[datetime] = None) -> Lot:
     '''
@@ -427,6 +471,16 @@ def retry_api_call(s: requests.Session, lon: float, lat: float, retry: int) -> b
         log(f'The retry attempt has reached the limit. Aborting the process...')
         return False
 
+def wait():
+    now = datetime.now()
+    minutes = (now.minute // 10 + 1) * 10
+    if minutes == 60:
+        next_run = (now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1))
+    else:
+        next_run = now.replace(minute=minutes, second=0, microsecond=0)
+    wait_seconds = (next_run - now).total_seconds()
+    sleep(wait_seconds)
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Access Taipei City\'s roadside parking vacancy API and save them as GeoJSON.')
     parser.add_argument(
@@ -435,6 +489,12 @@ if __name__ == '__main__':
         default=1,
         help='The number of runs. Leave it 0 to loop forever.'
     )
+    parser.add_argument(
+        '--group', '-g',
+        type=int,
+        default=0,
+        help='The code of predefined region. (1 = North, 2 = West, 3 = South, 4 = East)'
+    )
     args = parser.parse_args()
-    init_log()
-    main()
+    init_log(group=args.group)
+    main(max_runs=args.run, group=args.group)

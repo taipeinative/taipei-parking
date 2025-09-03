@@ -182,3 +182,4 @@ cython_debug/
 
 log/
 data/
+crawler.bat
