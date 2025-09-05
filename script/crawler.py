@@ -257,7 +257,10 @@ def get_parking_status_at(s: requests.Session, lon: float, lat: float, **kwargs)
         else:
             retry = retry_param
 
-    raw = s.get(URL.format(long=lon, lat=lat))
+    raw = get_response(s, URL.format(long=lon, lat=lat))
+    if (raw is None):
+        raise ConnectionError(f'The parking status is not retrievable at ({lon}, {lat}).')
+
     if (not raw.ok):
         log(f'Failed to fetch the API [Attempt {retry + 1}]. ({raw.status_code}, {raw.reason})')
         if (not retry_api_call(s, lon, lat, retry)):
@@ -276,6 +279,40 @@ def get_parking_status_at(s: requests.Session, lon: float, lat: float, **kwargs)
             lots.append(parse_lot_info(lot, dt))
 
     return lots
+
+def get_response(s: requests.Session, url: str, group: int = 0, headers: Optional[dict[str, str]] = None, retry: int = 0) -> requests.Response | None:
+    def _send_request() -> tuple[requests.Response, bool]:
+        try:
+            res = s.get(url, headers=headers)
+            return (res, True)
+        except ConnectionError:
+            log(f'Failed to retrieve the url `{url}`.', group)
+            return (requests.Response(), False)
+        except Exception as ex:
+            log(f'An error occured: {ex}', group)
+            return (requests.Response(), False)
+
+    response, status = _send_request()
+    if (status):
+        return response
+    else:
+        if (retry == 0):
+            connected = False
+            while (not connected):
+                sleep(10)
+                response, status = _send_request()
+                if (status):
+                    return response
+
+        else:
+            for i in range(retry):
+                sleep(10)
+                response, status = _send_request()
+                if (status):
+                    return response
+        
+        return response
+
 
 def handshake(s: requests.Session, group: int = 0, verbose: bool = False) -> bool:
     '''
@@ -296,7 +333,11 @@ def handshake(s: requests.Session, group: int = 0, verbose: bool = False) -> boo
     '''
     if (verbose):
         log('Start the handshake...', group)
-    raw = s.get(BASEURL, headers=BASEHEADER)
+    
+    raw = get_response(s, BASEURL, group, BASEHEADER)
+    if (raw is None):
+        log(f'Failed test 1-0: Error when setting up connection.')
+        return False
 
     # Test 1: the base website
     if (not raw.ok):
@@ -322,7 +363,10 @@ def handshake(s: requests.Session, group: int = 0, verbose: bool = False) -> boo
     
     s.headers.update(HEADER)
     s.headers.update({'X-CSRF-TOKEN': token})
-    raw = s.get(URL.format(long=121.54, lat=25.04))
+    raw = get_response(s, URL.format(long=121.54, lat=25.04), group)
+    if (raw is None):
+        log(f'Failed test 2-0: Error when setting up connection.')
+        return False
 
     # Test 2: the API interface
     if (not raw.ok):

@@ -159,7 +159,7 @@ def main(log_level: Literal['info', 'none', 'verbose'], load_file: str | None = 
     if (load_file is not None):
         history = LotsHistory.load_file(load_file)
     get_history(history)
-    history.to_file(f'{DATA_DIR}/history_1.json')
+    history.to_file(f'{DATA_DIR}/history.json')
     log('Finished processing.', get_log_level(NONE))
 
 def read_file(path: str, day_of_week: int, hour: int, minute: int, history: LotsHistory) -> None:
