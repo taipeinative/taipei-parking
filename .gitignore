@@ -183,4 +183,5 @@ cython_debug/
 log/
 data/
 aggregate.bat
+extract.bat
 crawler.bat

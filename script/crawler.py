@@ -313,7 +313,6 @@ def get_response(s: requests.Session, url: str, group: int = 0, headers: Optiona
         
         return response
 
-
 def handshake(s: requests.Session, group: int = 0, verbose: bool = False) -> bool:
     '''
     Perform the handshake to make sure the API interface is accessible.
