@@ -1,0 +1,133 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;600;700&family=Poppins:wght@400;600&display=swap');
+
+/* 整體樣式 */
+body {
+    margin: 0;
+    font-family: 'Noto Sans TC', Arial, sans-serif;
+    padding: 0 1rem;
+}
+
+/* 地圖 */
+#map {
+    height: 50vh;
+    width: 100%;
+    z-index: 2;
+}
+
+.table-container {
+    width: 50%;
+    overflow-x: auto;
+    margin: 2rem auto;
+}
+
+  table.options-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  thead {
+    background: linear-gradient(90deg, #2563eb, #1d4ed8);
+    color: #fff;
+  }
+
+  th, td {
+    text-align: center;
+    padding: 0.75rem;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  th:first-child,
+  td:first-child {
+    text-align: left;
+    padding-left: 1rem;
+    font-weight: 600;
+  }
+
+  tbody tr:hover {
+    background-color: #f9fafb;
+  }
+
+  input[type="number"] {
+    width: 70px;
+    padding: 0.4rem 0.5rem;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    background: #f9fafb;
+    text-align: right;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+  }
+
+  input[type="number"]:focus {
+    border-color: #2563eb;
+    background: #fff;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(37,99,235,0.2);
+  }
+
+  @media (max-width: 768px) {
+    th, td {
+      padding: 0.5rem;
+    }
+    input[type="number"] {
+      width: 60px;
+    }
+  }
+
+  .group-header {
+    background: #f1f5f9;
+    font-weight: 700;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .group-header:hover {
+    background: #e2e8f0;
+  }
+
+  .hidden-row {
+    display: none;
+  }
+
+  .collapse-icon {
+    margin-right: 8px;
+    font-size: 1.1rem;
+    color: #2563eb;
+  }
+
+.time-selector {
+  display: flex;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  overflow: hidden;
+  width: fit-content;
+  margin-bottom: 10px;
+  user-select: none;
+}
+
+.time-option {
+  flex: 1;
+  padding: 6px 12px;
+  text-align: center;
+  background: white;
+  color: black;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.time-option.selected {
+  background: #007bff;
+  color: white;
+}
+
+.time-option:not(:last-child) {
+  border-right: 1px solid #ccc;
+}
+
+.supply-weight {
+  margin-top: 8px;
+}

@@ -1,0 +1,7 @@
+# Only allow tile PNGs and proxy script
+<FilesMatch "\.(php|png)$">
+    Require all granted
+</FilesMatch>
+
+# Disable directory listing
+Options -Indexes

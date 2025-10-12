@@ -181,7 +181,7 @@ cython_debug/
 .cursorindexingignore
 
 log/
-data/
+/data/
 aggregate.bat
 extract.bat
 crawler.bat
