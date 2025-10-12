@@ -19,8 +19,8 @@
         <div id="map"></div>
 
         <!-- Time -->
-        <div id="timeSelector" class="time-selector">
-            <div data-time="morning" class="time-option selected">上午</div>
+        <div class="time-selector" id="timeSelector">
+            <div data-time="morning" class="time-option active">上午</div>
             <div data-time="afternoon" class="time-option">下午</div>
             <div data-time="midnight" class="time-option">午夜</div>
         </div>
@@ -32,57 +32,40 @@
         </div>
 
         <div class="table-container">
-            <table class="options-table" id="optionsTable">
+            <table id="weightTable">
                 <thead>
                     <tr>
-                        <th>項目</th>
-                        <th>上午</th>
-                        <th>下午</th>
-                        <th>午夜</th>
+                    <th>分類</th>
+                    <th>上午</th>
+                    <th>下午</th>
+                    <th>午夜</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <!-- Group A -->
-                    <tr class="group-header" data-group="A"><td colspan="4"><span class="collapse-icon">▼</span>餐飲</td></tr>
-                    <tr data-group="A"><td>食品批發</td><td><input id="A1_morning" type="number" step="0.1" value="1" /></td><td><input id="A1_afternoon" type="number" step="0.1" value="0.6" /></td><td><input id="A1_midnight" type="number" step="0.1" value="0.3" /></td></tr>
-                    <tr data-group="A"><td>餐廳</td><td><input id="A2_morning" type="number" step="0.1" value="0.9" /></td><td><input id="A2_afternoon" type="number" step="0.1" value="1" /></td><td><input id="A2_midnight" type="number" step="0.1" value="0.8" /></td></tr>
-                    <tr data-group="A"><td>飲料店</td><td><input id="A3_morning" type="number" step="0.1" value="0.8" /></td><td><input id="A3_afternoon" type="number" step="0.1" value="0.5" /></td><td><input id="A3_midnight" type="number" step="0.1" value="0.5" /></td></tr>
-                    <tr data-group="A"><td>其他餐飲</td><td><input id="A4_morning" type="number" step="0.1" value="0.9" /></td><td><input id="A4_afternoon" type="number" step="0.1" value="1" /></td><td><input id="A4_midnight" type="number" step="0.1" value="0.8" /></td></tr>
-
-                    <!-- Group B -->
-                    <tr class="group-header" data-group="B"><td colspan="4"><span class="collapse-icon">▼</span>服飾</td></tr>
-                    <tr data-group="B"><td>服飾批發</td><td><input id="B1_morning" type="number" step="0.1" value="0.2" /></td><td><input id="B1_afternoon" type="number" step="0.1" value="0.3" /></td><td><input id="B1_midnight" type="number" step="0.1" value="0" /></td></tr>
-                    <tr data-group="B"><td>服飾零售</td><td><input id="B2_morning" type="number" step="0.1" value="0.2" /></td><td><input id="B2_afternoon" type="number" step="0.1" value="0.3" /></td><td><input id="B2_midnight" type="number" step="0.1" value="0" /></td></tr>
-
-                    <!-- Group C -->
-                    <tr class="group-header" data-group="C"><td colspan="4"><span class="collapse-icon">▼</span>日用品</td></tr>
-                    <tr data-group="C"><td>家用器具批發</td><td><input id="C1_morning" type="number" step="0.1" value="0.5" /></td><td><input id="C1_afternoon" type="number" step="0.1" value="1" /></td><td><input id="C1_midnight" type="number" step="0.1" value="0.6" /></td></tr>
-                    <tr data-group="C"><td>家用器具零售</td><td><input id="C2_morning" type="number" step="0.1" value="0.5" /></td><td><input id="C2_afternoon" type="number" step="0.1" value="1" /></td><td><input id="C2_midnight" type="number" step="0.1" value="0.6" /></td></tr>
-                    <tr data-group="C"><td>藥妝品批發</td><td><input id="C3_morning" type="number" step="0.1" value="0.4" /></td><td><input id="C3_afternoon" type="number" step="0.1" value="0.9" /></td><td><input id="C3_midnight" type="number" step="0.1" value="0.4" /></td></tr>
-                    <tr data-group="C"><td>藥妝品零售</td><td><input id="C4_morning" type="number" step="0.1" value="0.4" /></td><td><input id="C4_afternoon" type="number" step="0.1" value="0.9" /></td><td><input id="C4_midnight" type="number" step="0.1" value="0.4" /></td></tr>
-                    <tr data-group="C"><td>文教育樂批發</td><td><input id="C5_morning" type="number" step="0.1" value="0.6" /></td><td><input id="C5_afternoon" type="number" step="0.1" value="0.8" /></td><td><input id="C5_midnight" type="number" step="0.1" value="0.5" /></td></tr>
-                    <tr data-group="C"><td>文教育樂零售</td><td><input id="C6_morning" type="number" step="0.1" value="0.6" /></td><td><input id="C6_afternoon" type="number" step="0.1" value="0.8" /></td><td><input id="C6_midnight" type="number" step="0.1" value="0.5" /></td></tr>
-                    <tr data-group="C"><td>機械器具</td><td><input id="C7_morning" type="number" step="0.1" value="0.2" /></td><td><input id="C7_afternoon" type="number" step="0.1" value="0.2" /></td><td><input id="C7_midnight" type="number" step="0.1" value="0.1" /></td></tr>
-                    <tr data-group="C"><td>資通設備</td><td><input id="C8_morning" type="number" step="0.1" value="0.3" /></td><td><input id="C8_afternoon" type="number" step="0.1" value="0.4" /></td><td><input id="C8_midnight" type="number" step="0.1" value="0.1" /></td></tr>
-                    <tr data-group="C"><td>汽機車</td><td><input id="C9_morning" type="number" step="0.1" value="0.1" /></td><td><input id="C9_afternoon" type="number" step="0.1" value="0.2" /></td><td><input id="C9_midnight" type="number" step="0.1" value="0.1" /></td></tr>
-
-                    <!-- Group D -->
-                    <tr class="group-header" data-group="D"><td colspan="4"><span class="collapse-icon">▼</span>專門</td></tr>
-                    <tr data-group="D"><td>農牧用品</td><td><input id="D1_morning" type="number" step="0.1" value="0.3" /></td><td><input id="D1_afternoon" type="number" step="0.1" value="0.2" /></td><td><input id="D1_midnight" type="number" step="0.1" value="0.1" /></td></tr>
-                    <tr data-group="D"><td>建材</td><td><input id="D2_morning" type="number" step="0.1" value="0.1" /></td><td><input id="D2_afternoon" type="number" step="0.1" value="0.2" /></td><td><input id="D2_midnight" type="number" step="0.1" value="0" /></td></tr>
-                    <tr data-group="D"><td>化學用品</td><td><input id="D3_morning" type="number" step="0.1" value="0.1" /></td><td><input id="D3_afternoon" type="number" step="0.1" value="0.2" /></td><td><input id="D3_midnight" type="number" step="0.1" value="0" /></td></tr>
-                    <tr data-group="D"><td>專門批發</td><td><input id="D4_morning" type="number" step="0.1" value="0.1" /></td><td><input id="D4_afternoon" type="number" step="0.1" value="0.2" /></td><td><input id="D4_midnight" type="number" step="0.1" value="0" /></td></tr>
-                    <tr data-group="D"><td>專門零售</td><td><input id="D5_morning" type="number" step="0.1" value="0.1" /></td><td><input id="D5_afternoon" type="number" step="0.1" value="0.2" /></td><td><input id="D5_midnight" type="number" step="0.1" value="0" /></td></tr>
-
-                    <!-- Group E -->
-                    <tr class="group-header" data-group="E"><td colspan="4"><span class="collapse-icon">▼</span>綜合</td></tr>
-                    <tr data-group="E"><td>便利商店</td><td><input id="E1_morning" type="number" step="0.1" value="1.5" /></td><td><input id="E1_afternoon" type="number" step="0.1" value="1.5" /></td><td><input id="E1_midnight" type="number" step="0.1" value="0.8" /></td></tr>
-                    <tr data-group="E"><td>其他綜合批發</td><td><input id="E2_morning" type="number" step="0.1" value="1" /></td><td><input id="E2_afternoon" type="number" step="0.1" value="0.8" /></td><td><input id="E2_midnight" type="number" step="0.1" value="0.3" /></td></tr>
-                    <tr data-group="E"><td>其他綜合零售</td><td><input id="E3_morning" type="number" step="0.1" value="0.8" /></td><td><input id="E3_afternoon" type="number" step="0.1" value="0.6" /></td><td><input id="E3_midnight" type="number" step="0.1" value="0.2" /></td></tr>
-
-                    <!-- Group F -->
-                    <tr class="group-header" data-group="F"><td colspan="4"><span class="collapse-icon">▼</span>郵政</td></tr>
-                    <tr data-group="F"><td>郵政</td><td><input id="F1_morning" type="number" step="0.1" value="0.8" /></td><td><input id="F1_afternoon" type="number" step="0.1" value="1" /></td><td><input id="F1_midnight" type="number" step="0.1" value="0.7" /></td></tr>
+                    <tr>
+                    <td>批發</td>
+                    <td><input type="number" id="批發_morning" step="0.1" value="1"></td>
+                    <td><input type="number" id="批發_afternoon" step="0.1" value="1"></td>
+                    <td><input type="number" id="批發_midnight" step="0.1" value="1"></td>
+                    </tr>
+                    <tr>
+                    <td>零售</td>
+                    <td><input type="number" id="零售_morning" step="0.1" value="1"></td>
+                    <td><input type="number" id="零售_afternoon" step="0.1" value="1"></td>
+                    <td><input type="number" id="零售_midnight" step="0.1" value="1"></td>
+                    </tr>
+                    <tr>
+                    <td>餐飲</td>
+                    <td><input type="number" id="餐飲_morning" step="0.1" value="1"></td>
+                    <td><input type="number" id="餐飲_afternoon" step="0.1" value="1"></td>
+                    <td><input type="number" id="餐飲_midnight" step="0.1" value="1"></td>
+                    </tr>
+                    <tr>
+                    <td>郵政</td>
+                    <td><input type="number" id="郵政_morning" step="0.1" value="1"></td>
+                    <td><input type="number" id="郵政_afternoon" step="0.1" value="1"></td>
+                    <td><input type="number" id="郵政_midnight" step="0.1" value="1"></td>
+                    </tr>
                 </tbody>
             </table>
         </div>

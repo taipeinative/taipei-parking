@@ -1,5 +1,3 @@
-const APIKEY = 'gXAfGuwbRueOGQvJ5wEm'
-
 /**
  * 管理擷取資訊的類別。
  */
@@ -163,7 +161,6 @@ class MapService {
 
             // MapTiler
             case 'MAPTILER':
-                if (!options.key) throw new Error('MapTiler API key is required.');
                 const styleId = options.style || 'streets-v2';
                 layer = new ol.layer.Tile({
                     id: layerId,
@@ -224,52 +221,47 @@ class MapService {
         switch (name) {
             case 'grid':
                 return (feature) => {
-                    const weights = collectTableData();
-                    const timeKey = getCurrentTime();
                     const props = feature.getProperties();
-                    const supplyWeight = parseFloat(document.getElementById('supply')?.value || 1);
+                    const weights = collectTableData();
+                    const w = weights; // shorthand
+                    const t = selectedTime; // current time selection
 
-                    let weightedSum = 0;
-                    for (const id in weights) {
-                        const w = weights[id][timeKey] ?? 0;
-                        const val = props[id] ?? 0;
-                        weightedSum += val * w;
-                    }
+                    // Weighted demand = 批發*W1 + 零售*W2 + 餐飲*W3 + 郵政*W4
+                    const demand =
+                        (props['批發'] || 0) * (w['批發']?.[t] || 0) +
+                        (props['零售'] || 0) * (w['零售']?.[t] || 0) +
+                        (props['餐飲'] || 0) * (w['餐飲']?.[t] || 0) +
+                        (props['郵政'] || 0) * (w['郵政']?.[t] || 0);
 
-                    const supply = props['Supply'] ?? 0;
-                    const diff = (supply * supplyWeight) - weightedSum;
+                    const supply = (props['供給'] || 0) * (w['供給'] || 1);
 
+                    const diff = supply - demand;
+
+                    // Clamp & normalize color scale
                     const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
-
-                    // default white
-                    let r = 255, g = 255, b = 255;
+                    const maxAbs = 50;
                     const alpha = 0.4;
+                    const c = clamp(diff, -maxAbs, maxAbs);
 
-                    if (diff > 0) {
-                        // positive (surplus): white → green
-                        const t = clamp(diff / 50, 0, 1);
-                        r = 255 - Math.round(255 * t);
-                        g = 255;
-                        b = 255 - Math.round(255 * t);
-                    } else if (diff < 0) {
-                        // negative (deficit): white → red
-                        const t = clamp(-diff / 50, 0, 1);
-                        r = 255;
-                        g = 255 - Math.round(255 * t);
-                        b = 255 - Math.round(255 * t);
+                    let color;
+                    if (c >= 0) {
+                    // Surplus → green
+                    const g = Math.round(255 * (c / maxAbs));
+                    color = `rgba(${255 - g}, 255, ${255 - g}, ${alpha})`;
+                    } else {
+                    // Deficit → red
+                    const r = Math.round(255 * (-c / maxAbs));
+                    color = `rgba(255, ${255 - r}, ${255 - r}, ${alpha})`;
                     }
-
-                    const fillColor = `rgba(${r}, ${g}, ${b}, ${alpha})`;
 
                     return new ol.style.Style({
-                        fill: new ol.style.Fill({ color: fillColor }),
-                        stroke: new ol.style.Stroke({
-                            color: '#444',
-                            width: 0.75
-                        }),
-                        zIndex: 7
-                    });
-                };
+                    fill: new ol.style.Fill({ color }),
+                    stroke: new ol.style.Stroke({
+                        color: '#444',
+                        width: 0.5
+                    })
+                });
+            };
 
             case 'lot-centroid':
                 return new ol.style.Style({
@@ -373,6 +365,8 @@ class MapService {
     }
 }
 
+let selectedTime = 'morning';
+
 /**
  * @var {MapService} mapService 儲存地圖服務的物件。
  */
@@ -380,11 +374,12 @@ let mapService = new MapService();
 
 const collectTableData = () => {
     const data = {};
-    document.querySelectorAll("input[type='number']").forEach(input => {
-      const [id, time] = input.id.split("_");
-      if (!data[id]) data[id] = {};
-      data[id][time] = parseFloat(input.value);
+    document.querySelectorAll("#weightTable input").forEach(input => {
+        const [category, time] = input.id.split("_");
+        if (!data[category]) data[category] = {};
+        data[category][time] = parseFloat(input.value);
     });
+    data["供給"] = parseFloat(document.getElementById("supply").value) || 1;
     return data;
 }
 
@@ -402,7 +397,7 @@ const initialize = async () => {
     mapService.view.setZoom(14);
 
     // 加入基本圖層。
-    await mapService.getLayer('MAPTILER', true, {key: APIKEY, style: 'dataviz'});
+    await mapService.getLayer('MAPTILER', true, {style: 'dataviz'});
 
     // 加入套疊圖層。
     await mapService.getLayer('GRID', true, { zIndex: 0 });
@@ -419,25 +414,13 @@ const supplyHandler = () => {
 }
 
 const tableHandler = () => {
-    // 可折疊的標題
-    document.querySelectorAll(".group-header").forEach(header => {
-        header.addEventListener("click", () => {
-        const group = header.dataset.group;
-        const rows = document.querySelectorAll(`tr[data-group='${group}']:not(.group-header)`);
-        const icon = header.querySelector(".collapse-icon");
-        const hidden = rows[0].classList.contains("hidden-row");
-        rows.forEach(r => r.classList.toggle("hidden-row"));
-        icon.textContent = hidden ? "▼" : "►";
-        });
-    });
-
     // 驗證輸入值
-    document.querySelectorAll("input[type='number']").forEach(input => {
-        input.addEventListener("input", e => {
-            const val = parseFloat(e.target.value);
+    document.querySelectorAll("#weightTable input, #supply").forEach(input => {
+        input.addEventListener("input", () => {
+            const val = parseFloat(input.value);
             if (val < 0) {
-                alert(`⚠️ 負數警告：欄位 ${e.target.id} 的值不可為負數！`);
-                e.target.value = 0;
+                alert(`⚠️ 欄位 ${input.id} 的值不可為負數！`);
+                input.value = 0;
             }
             refreshGridLayer();
         });
@@ -445,11 +428,11 @@ const tableHandler = () => {
 }
 
 const timeSelectorHandler = () => {
-    const container = document.getElementById("timeSelector");
-    container.querySelectorAll(".time-option").forEach(opt => {
-            opt.addEventListener("click", () => {
-            container.querySelectorAll(".time-option").forEach(o => o.classList.remove("selected"));
-            opt.classList.add("selected");
+    document.querySelectorAll('.time-option').forEach(opt => {
+        opt.addEventListener('click', () => {
+            document.querySelectorAll('.time-option').forEach(o => o.classList.remove('active'));
+            opt.classList.add('active');
+            selectedTime = opt.dataset.time;
             refreshGridLayer();
         });
     });
@@ -468,4 +451,5 @@ window.addEventListener('load', () => {
     supplyHandler();
     tableHandler();
     timeSelectorHandler();
+    refreshGridLayer();
 });
