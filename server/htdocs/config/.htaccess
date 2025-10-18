@@ -1,4 +1,0 @@
-# Deny all HTTP access
-<FilesMatch ".*">
-    Require all denied
-</FilesMatch>

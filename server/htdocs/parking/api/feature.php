@@ -1,19 +1,5 @@
 <?php
-// require_once '../backend/get_poi.php';
-
-// =========
-// CONSTANTS
-// =========
-
-/**
- * The Python executable location.
- * @var string
- */
-const PYTHON = 'D:\Documents\PythonVenv\geo\Scripts\python.exe';
-
-// =========
-// REQUESTS
-// =========
+// Handle POST requests
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $feature = $_POST['feature'] ?? null;
 
@@ -23,30 +9,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    // if (is_null($xmin) || is_null($ymin) || is_null($xmax) || is_null($ymax)) {
-    //     http_response_code(400);
-    //     echo json_encode(["error" => "Missing parameters (xmin, ymin, xmax, ymax)."]);
-    //     exit;
-    // }
-
     switch ($feature) {
         case 'grid':
+            header('Content-Type: application/geo+json');
             echo file_get_contents('..' . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'grid.geojson');
             break;
 
-        case 'lot-centroid':
-            echo file_get_contents('..' . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'lot-centroid.geojson');
-            break;
-
-        case 'lot-polygon':
+        case 'lot':
+            header('Content-Type: application/geo+json');
             echo file_get_contents('..' . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'lot.geojson');
             break;
 
         case 'poi':
+            header('Content-Type: application/geo+json');
             echo file_get_contents('..' . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'poi.geojson');
             break;
         
         default:
+            header('Content-Type: application/json');
             http_response_code(400);
             echo json_encode(["error" => "Invalid feature type."]);
             break;

@@ -1,8 +1,11 @@
-// ====== Map setup (Dark Matter No Labels) ======
+// ===== Constants =====
+FEATURE_PROVIDER = './api/feature.php';
+TILEMAP_PROVIDER = 'https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png';
+
+// ====== Map setup ======
 const map = L.map('map', { zoomControl: false }).setView([25.04, 121.55], 12);
-L.control.zoom({ position:'bottomright' }).addTo(map);
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
-  attribution: '&copy; OpenStreetMap &copy; CARTO', subdomains: 'abcd', maxZoom: 19
+L.tileLayer(TILEMAP_PROVIDER, {
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> &copy; CARTO', maxZoom: 19
 }).addTo(map);
 
 // ====== State ======
@@ -105,51 +108,70 @@ function getColor(val, mode){
 let gridLayer = null;
 let data = null;
 
-fetch('./api/feature.php', {
-  method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'feature=grid'
-})
-.then(r=>{ if(!r.ok) throw new Error(`API ${r.status}`); return r.json(); })
-.then(json=>{
-  data = json;
-  // init user props
-  data.features.forEach(f=>{
-    f.properties.userFrac   = 0;
-    f.properties.userSupply = 0;
-    f.properties.userCount  = 0;
-  });
-
-  recompute();
-  gridLayer = L.geoJSON(data, {
-    style: f => ({ color:'#152033', weight:0.6, opacity:0.8, fillOpacity:0.88, fillColor: getColor(f.properties[currentMode], currentMode) }),
-    onEachFeature: (f, layer) => {
-      // Hover glow & elevate
-      layer.on('mouseover', function(){ this.setStyle({ weight:1.6, color:'#7afcff', fillOpacity:0.96 }); this.bringToFront(); });
-      layer.on('mouseout',  function(){ this.setStyle({ weight:0.6, color:'#152033', fillOpacity:0.88 }); });
-
-      layer.bindPopup(()=>{
-        const p = f.properties;
-        const sW = W('supply_weight');
-        const frac = p.userFrac || 0;
-        return `
-          <div style="font-size:12px; line-height:1.35">
-            <div style="font-weight:700; letter-spacing:.03em; margin-bottom:4px">格網：${p.Index ?? '-'}</div>
-            <div>需求：<b>${fmt(p.demand)}</b></div>
-            <div>供給：<b>${fmt(p.supply)}</b> <small style="color:#9fb7cc">＝(原始 ${fmt(p['供給']||0)} + 使用者 ${fmt(frac)}×8) × 權重 ${fmt(sW)}</small></div>
-            <div>使用者 buffer 覆蓋比例：${fmt(frac)}；未加權供給：${fmt(p.userSupply||0)}</div>
-            <div>差額：<b style="color:${p.diff>=0?'#58ff9c':'#ff6d6d'}">${fmt(p.diff)}</b></div>
-            <div>比率：<b>${fmt(p.ratio)} %</b></div>
-          </div>`;
-      });
+/**
+ * Fetch the resource from the provider API.
+ * @param {'grid' | 'lot' | 'poi'} id The id of the resource.
+ * @param {string} name The name of the resource. 
+ * @param {(value: Promise<any>) => void} success The callback function on success.
+ * @param {(reason: any) => void | PromiseLike<void>} rejected The callback function on rejected.
+ */
+const fetchData = (id, name, success = () => {}, rejected = () => {}) => {
+  fetch(FEATURE_PROVIDER, {method: 'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: `feature=${id}`})
+  .then(r => {
+    if (!r.ok) {
+      throw new Error(`API: ${r.status}`);
     }
-  }).addTo(map);
+    return r.json();
+  })
+  .then(success)
+  .catch(err => {
+    console.log(`讀取${name}失敗：`, err);
+    rejected;
+  });
+}
 
-  map.fitBounds(gridLayer.getBounds(), { padding:[20,20] });
-  refreshLegend();
+fetchData('grid', '網格',
+  success = json => {
+    data = json;
+    // init user props
+    data.features.forEach(f=>{
+      f.properties.userFrac   = 0;
+      f.properties.userSupply = 0;
+      f.properties.userCount  = 0;
+    });
 
-  // restore user points
-  restoreUserLots();
-})
-.catch(err=> console.log('讀取格網失敗：', err));
+    recompute();
+    gridLayer = L.geoJSON(data, {
+      style: f => ({ color:'#152033', weight:0.6, opacity:0.8, fillOpacity:0.88, fillColor: getColor(f.properties[currentMode], currentMode) }),
+      onEachFeature: (f, layer) => {
+        // Hover glow & elevate
+        layer.on('mouseover', function(){ this.setStyle({ weight:1.6, color:'#7afcff', fillOpacity:0.96 }); this.bringToFront(); });
+        layer.on('mouseout',  function(){ this.setStyle({ weight:0.6, color:'#152033', fillOpacity:0.88 }); });
+
+        layer.bindPopup(()=>{
+          const p = f.properties;
+          const sW = W('supply_weight');
+          const frac = p.userFrac || 0;
+          return `
+            <div style="font-size:12px; line-height:1.35">
+              <div style="font-weight:700; letter-spacing:.03em; margin-bottom:4px">網格：${p.Index ?? '-'}</div>
+              <div>需求：<b>${fmt(p.demand)}</b></div>
+              <div>供給：<b>${fmt(p.supply)}</b> <small style="color:#9fb7cc">＝(原始 ${fmt(p['供給']||0)} + 使用者 ${fmt(frac)}×8) × 權重 ${fmt(sW)}</small></div>
+              <div>使用者 buffer 覆蓋比例：${fmt(frac)}；未加權供給：${fmt(p.userSupply||0)}</div>
+              <div>差額：<b style="color:${p.diff>=0?'#58ff9c':'#ff6d6d'}">${fmt(p.diff)}</b></div>
+              <div>比率：<b>${fmt(p.ratio)} %</b></div>
+            </div>`;
+        });
+      }
+    }).addTo(map);
+
+    map.fitBounds(gridLayer.getBounds(), { padding:[20,20] });
+    refreshLegend();
+
+    // restore user points
+    restoreUserLots();
+  }
+)
 
 function setGridVisible(on){
   if (on){
@@ -162,7 +184,7 @@ function setGridVisible(on){
           layer.bindPopup(()=>{
             const p = f.properties; const sW=W('supply_weight'); const frac=p.userFrac||0;
             return `<div style="font-size:12px; line-height:1.35">
-              <div style="font-weight:700; letter-spacing:.03em; margin-bottom:4px">格網：${p.Index ?? '-'}</div>
+              <div style="font-weight:700; letter-spacing:.03em; margin-bottom:4px">網格：${p.Index ?? '-'}</div>
               <div>需求：<b>${fmt(p.demand)}</b></div>
               <div>供給：<b>${fmt(p.supply)}</b> <small style="color:#9fb7cc">＝(原始 ${fmt(p['供給']||0)} + 使用者 ${fmt(frac)}×8) × 權重 ${fmt(sW)}</small></div>
               <div>使用者 buffer 覆蓋比例：${fmt(frac)}；未加權供給：${fmt(p.userSupply||0)}</div>
@@ -347,32 +369,43 @@ function restoreUserLots(){
 }
 
 /* ====== Extra data layers ====== */
-let lotLayer = null; let poiLayer = null;
+let lotLayer = null;
+let poiLayer = null;
 
 function toggleLots(on){
   if (on && !lotLayer){
-    fetch('./api/feature.php', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'feature=lot-centroid' })
-    .then(r=>r.json())
-    .then(json=>{
-      lotLayer = L.geoJSON(json, {
-        pointToLayer: (f,latlng)=> L.circleMarker(latlng, { radius: 4, color:'#0af', weight:1, fillColor:'#7afcff', fillOpacity:0.9 }),
-        onEachFeature: (f,l)=> l.bindTooltip(f.properties?.name || '卸貨車格', {permanent:false})
-      }).addTo(map);
-    })
-    .catch(()=>{ alert('載入卸貨車格失敗'); if (chkLots) chkLots.checked=false; });
-  } else if(!on && lotLayer){ map.removeLayer(lotLayer); lotLayer = null; }
+    fetchData('lot', '卸貨車格',
+      success = json => {
+        lotLayer = L.geoJSON(json, {
+          pointToLayer: (f,latlng)=> L.circleMarker(latlng, { radius: 4, color:'#0af', weight:1, fillColor:'#7afcff', fillOpacity:0.9 }),
+          onEachFeature: (f,l)=> l.bindTooltip(f.properties?.name || '卸貨車格', {permanent:false})
+        }).addTo(map);
+      },
+      rejected = () => {
+        if (chkLots) chkLots.checked=false;
+      }
+    );
+  } else if (!on && lotLayer) {
+    map.removeLayer(lotLayer);
+    lotLayer = null;
+  }
 }
 
 function togglePOI(on){
   if (on && !poiLayer){
-    fetch('./api/feature.php', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'feature=poi' })
-    .then(r=>r.json())
-    .then(json=>{
-      poiLayer = L.geoJSON(json, {
-        pointToLayer: (f,latlng)=> L.circleMarker(latlng, { radius: 3.5, color:'#ff6ad5', weight:1, fillColor:'#ff9adf', fillOpacity:0.85 }),
-        onEachFeature: (f,l)=> l.bindTooltip(f.properties?.name || '商家', {permanent:false})
-      }).addTo(map);
-    })
-    .catch(()=>{ alert('載入商家點位失敗'); if (chkPOI) chkPOI.checked=false; });
-  } else if(!on && poiLayer){ map.removeLayer(poiLayer); poiLayer = null; }
+    fetchData('poi', '商家點位',
+      success = json => {
+        poiLayer = L.geoJSON(json, {
+          pointToLayer: (f,latlng)=> L.circleMarker(latlng, { radius: 3.5, color:'#ff6ad5', weight:1, fillColor:'#ff9adf', fillOpacity:0.85 }),
+          onEachFeature: (f,l)=> l.bindTooltip(f.properties?.name || '商家', {permanent:false})
+        }).addTo(map);
+      },
+      rejected = () => {
+        if (chkPOI) chkPOI.checked=false;
+      }
+    );
+  } else if (!on && poiLayer) {
+    map.removeLayer(poiLayer);
+    poiLayer = null;
+  }
 }
