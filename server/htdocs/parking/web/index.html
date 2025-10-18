@@ -8,47 +8,51 @@
   <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
   <!-- Turf.js -->
   <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <link rel="stylesheet" href="./web/style.css" />
 </head>
 <body>
   <div id="map"></div>
 
-  <!-- ====== Top bar ====== -->
-  <div class="topbar">
+  <!-- Left dock: controls -->
+  <div class="dock-left">
     <div class="brand glass">
       <div class="logo"></div>
       <h1>臺北市卸貨車格供需分析</h1>
     </div>
 
-    <div class="mode-switch glass" role="group" aria-label="顯示模式">
-      <button class="btn active" data-mode="demand" title="需求 (D)">需求</button>
-      <button class="btn" data-mode="supply" title="供給 (S)">供給</button>
-      <button class="btn" data-mode="diff"   title="差額 (S−D)">差額</button>
-      <button class="btn" data-mode="ratio"  title="比率 (D/S)">比率</button>
+    <div class="container">
+      <div class="mode-switch glass" role="group" aria-label="顯示模式">
+        <button class="btn active" data-mode="demand" title="需求 (D)">需求</button>
+        <button class="btn" data-mode="supply" title="供給 (S)">供給</button>
+        <button class="btn" data-mode="diff"   title="差額 (S−D)">差額</button>
+        <button class="btn" data-mode="ratio"  title="比率 (D/S)">比率</button>
+      </div>
+
+      <div class="segments glass">
+        <button class="seg active" data-time="m" title="早 (04–12)">早</button>
+        <button class="seg" data-time="a" title="中 (12–20)">中</button>
+        <button class="seg" data-time="e" title="晚 (20–04)">晚</button>
+        <span class="chip" title="快捷鍵：1=早,2=中,3=晚" style="margin-top:4px;">時段快捷 <span class="kbd">1</span> <span class="kbd">2</span> <span class="kbd">3</span></span>
+      </div>
+
+      <div class="toggles glass">
+        <label><input type="checkbox" id="chkGrid" checked /> 網格</label>
+        <label><input type="checkbox" id="chkLots" /> 卸貨車格</label>
+        <label><input type="checkbox" id="chkPOI" /> 商家點位</label>
+      </div>
+
+      <div class="dock-actions">
+        <button id="btnAddLots" class="btn-ghost">➕ 新增車格（A）</button>
+        <button id="btnClearLots" class="btn-ghost">🧹 清空</button>
+      </div>
     </div>
-
-    <div class="toggles glass">
-      <label><input type="checkbox" id="chkGrid" checked /> 網格</label>
-      <label><input type="checkbox" id="chkLots" /> 卸貨車格</label>
-      <label><input type="checkbox" id="chkPOI"  /> 商家點位</label>
-    </div>
-  </div>
-
-  <!-- Time segments -->
-  <div class="segments glass">
-    <button class="seg active" data-time="m" title="早 (04–12)">早</button>
-    <button class="seg" data-time="a" title="中 (12–20)">中</button>
-    <button class="seg" data-time="e" title="晚 (20–04)">晚</button>
-    <span class="chip" style="margin-left:8px" title="快捷鍵：1=早, 2=中, 3=晚">時段快捷 <span class="kbd">1</span> <span class="kbd">2</span> <span class="kbd">3</span></span>
-  </div>
-
-  <!-- Left dock: editor -->
-  <div class="dock-left">
-    <button id="btnAddLots" class="btn-ghost">➕ 新增車格（A）</button>
-    <button id="btnClearLots" class="btn-ghost">🧹 清空</button>
   </div>
 
   <!-- Weights panel -->
@@ -98,6 +102,20 @@
         <button id="resetW" class="btn">重設</button>
       </div>
       <div class="note">D=批發×W+零售×W+餐飲×W+郵政×W；S=供給×W(供給) + 使用者新增車格數×每點車次。</div>
+    </div>
+  </div>
+
+  <!-- Info box -->
+  <div id="infoBox" class="glass info-box hidden">
+    <div class="info-header">
+      <span id="infoTitle">網格資訊</span>
+      <button id="infoClose" title="關閉">✕</button>
+    </div>
+    <div id="infoContent" class="info-content">
+      <p>點擊網格以檢視資訊</p>
+    </div>
+    <div class="info-chart">
+      <canvas id="vacancyChart"></canvas>
     </div>
   </div>
 

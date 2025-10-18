@@ -46,6 +46,7 @@ window.addEventListener('keydown', (e)=>{
   if (k==='s') document.querySelector('.mode-switch .btn[data-mode="supply"]').click();
   if (k==='f') document.querySelector('.mode-switch .btn[data-mode="diff"]').click();
   if (k==='r') document.querySelector('.mode-switch .btn[data-mode="ratio"]').click();
+  if (k==='escape') document.getElementById('infoClose').click();
   if (k==='enter') document.getElementById('applyW').click();
 });
 
@@ -160,24 +161,22 @@ const getGridLayer = () => {
   return L.geoJSON(data, {
       style: f => ({color:'#152033', weight:0.6, opacity:0.8, fillOpacity:0.8, fillColor: getColor(f.properties) }),
       onEachFeature: (f, layer) => {
-        // Hover glow & elevate
         layer.on('mouseover', function(){ this.setStyle({ weight:1.6, color:'#7afcff' }); });
         layer.on('mouseout',  function(){ this.setStyle({ weight:0.6, color:'#152033' }); });
-
-        layer.bindPopup(()=>{
+        layer.on('click', () => {
           const p = f.properties;
           const sW = W('supply_weight');
           const frac = p.userFrac || 0;
-          return `
-            <div style="font-size:12px; line-height:1.35">
-              <div style="font-weight:700; letter-spacing:.03em; margin-bottom:4px">網格：${p.Index ?? '-'}</div>
-              <div>需求：<b>${fmt(p.demand)}</b></div>
-              <div>供給：<b>${fmt(p.supply)}</b> <small style="color:#9fb7cc">＝(原始 ${fmt(p['供給']||0)} + 使用者 ${fmt(frac)}×8) × 權重 ${fmt(sW)}</small></div>
-              <div>使用者 buffer 覆蓋比例：${fmt(frac)}；未加權供給：${fmt(p.userSupply||0)}</div>
-              <div>差額：<b style="color:${p.diff>=0?'#58ff9c':'#ff6d6d'}">${fmt(p.diff)}</b></div>
-              <div>比率：<b>${fmt(p.ratio)} %</b></div>
-            </div>`;
-        });
+          const title = `網格 ${p.Index ?? '-'}`;
+          const html = `
+            <div>需求：<b>${fmt(p.demand)}</b></div>
+            <div>供給：<b>${fmt(p.supply)}</b> <small style="color:#9fb7cc">＝(原始 ${fmt(p['供給']||0)} + 使用者 ${fmt(frac)}×8) × 權重 ${fmt(sW)}</small></div>
+            <div>差額：<b>${fmt(p.diff)}</b></div>
+            <div>比率：<b>${p.ratio === Infinity ? "－" : fmt(p.ratio)}%</b></div>
+          `;
+          showInfoBox(title, html);
+          updateVacancyChart(p);
+        })
       }
   }).addTo(map);
 };
@@ -270,7 +269,7 @@ function refreshLegend(){
   const c = getColorRamp();
 
   const div = document.createElement('div');
-  div.className = 'legend glass legend-left';
+  div.className = 'legend glass legend-right';
 
   div.innerHTML =
     `<div class="title">${nm}</div>` +
@@ -318,6 +317,7 @@ if (btnClearLots){
 map.on('click', (e)=>{
   if (!addMode) return;
   const m = createDraggableMarker(e.latlng);
+  infoBox.classList.add('hidden');
   userLotsLayer.addLayer(m);
   userLots.push({ id: genId(), marker: m });
   saveUserLots();
@@ -391,6 +391,116 @@ function restoreUserLots(){
     updateUserSupplyFromPoints();
     recompute();
   }catch(e){ console.warn('無法解析 userLots：', e); }
+}
+
+/* ===== Infobox ===== */
+const infoBox = document.getElementById("infoBox");
+const infoTitle = document.getElementById("infoTitle");
+const infoContent = document.getElementById("infoContent");
+const infoClose = document.getElementById("infoClose");
+
+infoClose.addEventListener("click", () => {
+  infoBox.classList.add("hidden");
+});
+
+function showInfoBox(title, htmlContent) {
+  infoTitle.textContent = title;
+  infoContent.innerHTML = htmlContent;
+  infoBox.classList.remove("hidden");
+}
+
+/* ----- Chart ----- */
+let vacancyChart = null;
+
+function updateVacancyChart(props) {
+  const chartContainer = document.querySelector(".info-chart");
+  const canvas = document.getElementById("vacancyChart");
+  if (!chartContainer || !canvas) return;
+
+  const times = ["早", "中", "晚"];
+  const values = [props["早"], props["中"], props["晚"]].map(v =>
+    typeof v === "number" && !isNaN(v) ? v * 100 : null
+  );
+
+  const hasData = values.some(v => v !== null);
+
+  // Remove any existing "no data" notice
+  const oldMsg = chartContainer.querySelector(".no-data");
+  if (oldMsg) oldMsg.remove();
+
+  // Destroy any old chart instance
+  if (vacancyChart) {
+    vacancyChart.destroy();
+    vacancyChart = null;
+  }
+
+  if (!hasData) {
+    // Hide canvas, show fallback text
+    canvas.style.display = "none";
+    const msg = document.createElement("div");
+    msg.className = "no-data";
+    msg.textContent = "無歷史資料";
+    chartContainer.appendChild(msg);
+    return;
+  }
+
+  // If valid data, ensure canvas is visible
+  canvas.style.display = "block";
+
+  const ctx = canvas.getContext("2d");
+  vacancyChart = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: times,
+      datasets: [{
+        label: "平均車格空位率 (%)",
+        data: values,
+        borderColor: "#7afcff",
+        backgroundColor: "rgba(122,252,255,0.15)",
+        pointBackgroundColor: "#7afcff",
+        pointRadius: 4,
+        tension: 0.35,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: "rgba(15,20,35,0.9)",
+          titleColor: "#dffbff",
+          bodyColor: "#aeeaff",
+          borderColor: "#7afcff",
+          borderWidth: 1,
+          callbacks: {
+            label: ctx => `${ctx.parsed.y?.toFixed(1) ?? '-'} %`
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: "rgba(255,255,255,0.05)" },
+          ticks: { color: "#bfe8ff", font: { size: 11 } }
+        },
+        y: {
+          beginAtZero: true,
+          grid: { color: "rgba(255,255,255,0.05)" },
+          ticks: {
+            color: "#bfe8ff",
+            font: { size: 11 },
+            callback: v => v + "%"
+          },
+          title: {
+            display: true,
+            text: "空位率 (%)",
+            color: "#9fdfff",
+            font: { size: 11 }
+          }
+        }
+      }
+    }
+  });
 }
 
 /* ====== Extra data layers ====== */
