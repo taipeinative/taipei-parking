@@ -1,73 +1,93 @@
 <!DOCTYPE html>
-<html>
-    <head>
-        <!-- Meta data -->
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>台北市卸貨車格（供需分析）</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-        <!-- Title -->
-        <title>臺北市停車供需分析系統</title>
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-        <!-- Styles -->
-        <link rel="stylesheet" href="./web/style.css" />
+  <link rel="stylesheet" href="./web/style.css" />
+</head>
+<body>
+  <div id="map"></div>
 
-        <!-- Scripts -->
-        <script src="./web/index.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/ol@v10.2.1/dist/ol.js"></script>
-    </head>
-    <body>
-        <div id="map"></div>
+  <!-- 左上：主工具列 -->
+  <div class="toolbar">
+    <h3>顯示欄位</h3>
 
-        <!-- Time -->
-        <div class="time-selector" id="timeSelector">
-            <div data-time="morning" class="time-option active">上午</div>
-            <div data-time="afternoon" class="time-option">下午</div>
-            <div data-time="midnight" class="time-option">午夜</div>
-        </div>
+    <div class="btns">
+      <button data-mode="demand" class="active">需求</button>
+      <button data-mode="supply">供給</button>
+      <button data-mode="diff">差額</button>
+      <button data-mode="ratio">比率</button>
+    </div>
 
-        <!-- Supply -->
-        <div class="supply-weight">
-            <label for="supply">卸貨車格每小時服務車次：</label>
-            <input id="supply" type="number" value="1" min="0" step="0.1">
-        </div>
+    <div class="subbar">
+      <span class="label">時段：</span>
+      <button data-time="m" class="seg active">早</button>
+      <button data-time="a" class="seg">中</button>
+      <button data-time="e" class="seg">晚</button>
+    </div>
 
-        <div class="table-container">
-            <table id="weightTable">
-                <thead>
-                    <tr>
-                    <th>分類</th>
-                    <th>上午</th>
-                    <th>下午</th>
-                    <th>午夜</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                    <td>批發</td>
-                    <td><input type="number" id="批發_morning" step="0.1" value="1"></td>
-                    <td><input type="number" id="批發_afternoon" step="0.1" value="1"></td>
-                    <td><input type="number" id="批發_midnight" step="0.1" value="1"></td>
-                    </tr>
-                    <tr>
-                    <td>零售</td>
-                    <td><input type="number" id="零售_morning" step="0.1" value="1"></td>
-                    <td><input type="number" id="零售_afternoon" step="0.1" value="1"></td>
-                    <td><input type="number" id="零售_midnight" step="0.1" value="1"></td>
-                    </tr>
-                    <tr>
-                    <td>餐飲</td>
-                    <td><input type="number" id="餐飲_morning" step="0.1" value="1"></td>
-                    <td><input type="number" id="餐飲_afternoon" step="0.1" value="1"></td>
-                    <td><input type="number" id="餐飲_midnight" step="0.1" value="1"></td>
-                    </tr>
-                    <tr>
-                    <td>郵政</td>
-                    <td><input type="number" id="郵政_morning" step="0.1" value="1"></td>
-                    <td><input type="number" id="郵政_afternoon" step="0.1" value="1"></td>
-                    <td><input type="number" id="郵政_midnight" step="0.1" value="1"></td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-    </body>
+    <div class="toggles">
+      <label><input type="checkbox" id="chkLots" /> 卸貨車格</label>
+      <label><input type="checkbox" id="chkPOI" /> 商家點位</label>
+    </div>
+  </div>
+
+  <!-- 右下：權重（可收合） -->
+  <div class="weights" id="weightsPanel">
+    <div class="weights-header" id="toggleWeights" role="button" aria-expanded="true">
+      <h3>權重（四業 × 三時段）</h3>
+      <span class="chevron" aria-hidden="true"></span>
+    </div>
+
+    <div class="weights-body">
+      <!-- 供給權重 -->
+      <div class="supply-row">
+        <label for="supply_weight">卸貨車格每小時服務車次：</label>
+        <input type="number" id="supply_weight" step="0.1" value="1" />
+      </div>
+
+      <!-- 需求權重表 -->
+      <div class="wtable">
+        <div class="wh head"></div>
+        <div class="wh head">早<br><small>04–12</small></div>
+        <div class="wh head">中<br><small>12–20</small></div>
+        <div class="wh head">晚<br><small>20–04</small></div>
+
+        <div class="wl">批發</div>
+        <div><input type="number" step="0.1" id="wholesale_m" value="1"></div>
+        <div><input type="number" step="0.1" id="wholesale_a" value="0.6"></div>
+        <div><input type="number" step="0.1" id="wholesale_e" value="0.3"></div>
+
+        <div class="wl">零售</div>
+        <div><input type="number" step="0.1" id="retail_m" value="0.5"></div>
+        <div><input type="number" step="0.1" id="retail_a" value="1.0"></div>
+        <div><input type="number" step="0.1" id="retail_e" value="0.6"></div>
+
+        <div class="wl">郵政</div>
+        <div><input type="number" step="0.1" id="post_m" value="0.8"></div>
+        <div><input type="number" step="0.1" id="post_a" value="1.0"></div>
+        <div><input type="number" step="0.1" id="post_e" value="0.7"></div>
+
+        <div class="wl">餐飲</div>
+        <div><input type="number" step="0.1" id="food_m" value="0.9"></div>
+        <div><input type="number" step="0.1" id="food_a" value="1.0"></div>
+        <div><input type="number" step="0.1" id="food_e" value="0.8"></div>
+      </div>
+
+      <div class="actions">
+        <button id="applyW" class="primary">套用權重</button>
+        <button id="resetW">重設</button>
+      </div>
+      <small class="hint">D=批發×W+零售×W+餐飲×W+郵政×W；S=供給×W(供給)。切換時段會套用對應權重。</small>
+    </div>
+  </div>
+
+  <script src="./web/index.js" defer></script>
+</body>
 </html>

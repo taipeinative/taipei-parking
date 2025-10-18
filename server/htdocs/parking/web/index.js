@@ -1,455 +1,240 @@
-/**
- * 管理擷取資訊的類別。
- */
-class Fetch {
-    /**
-     * @var {string} logLevel 輸出日誌的等級。
-     */
-    static logLevel = 'Info';
+// === 地圖（更乾淨底圖：Carto Light 無標註） ===
+const map = L.map('map').setView([25.04, 121.55], 12);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', {
+  attribution: '&copy; OpenStreetMap &copy; CARTO',
+  subdomains: 'abcd',
+  maxZoom: 19
+}).addTo(map);
 
-    /**
-     * 擷取指定圖徵的方法。
-     * @param {string} id 資源的名稱。 
-     */
-    static async features(id) {
-        try {
-            const formData = new FormData();
-            formData.append('feature', id);
+// === 狀態 ===
+let currentMode = 'demand'; // demand | supply | diff | ratio
+let currentTime = 'm';      // m | a | e
 
-            const response = await fetch('./api/feature.php', {
-                method: 'POST',
-                body: formData
-            });
-
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-            const features = await response.json();
-            return features;
-
-        } catch (err) {
-            console.error('Failed to fetch features:', err);
-        }
-    }
-}
-
-/**
- * 管理互動式地圖的類別。
- */
-class MapService {
-    /**
-     * @var {Array<any>} controls 儲存地圖控制項目的欄位。
-     */
-    controls = [];
-
-    /**
-     * @var {ol.interaction} 管理使用者互動的把柄（Handle）。
-     */
-    interaction;
-
-    /**
-     * @var {Array<any>} layers 儲存圖層的欄位。
-     */
-    layers = [];
-
-    /**
-     * @var {ol.Map} map 儲存地圖的欄位。
-     */
-    map;
-
-    /**
-     * @var {string} ref 儲存參考對象名稱的欄位。
-     */
-    ref = 'map';
-
-    /**
-     * @var {ol.View} view 儲存視角的欄位。
-     */
-    view;
-
-    /**
-     * 建立互動式地圖的建構函式。
-     * @param {string} ref 地圖將置入的對象名稱。
-     */
-    constructor(ref) {
-        if (ref != null) {
-            this.ref = ref;
-            this.view = new ol.View({
-                center: ol.proj.fromLonLat([121.545, 25.04]),
-                maxZoom: 18.5,
-                minZoom: 2.5,
-                zoom: 10
-            });
-        }
-    }
-
-    /**
-     * 將地圖添加至指定對象。
-     * @param {ol.View} view 視角設定，可選參數。
-     * @returns {MapService} 若有需要，此方法將回傳自身。
-     */
-    addToRef(view = this.view) {
-        this.map = new ol.Map({
-            controls: this.controls,
-            layers: this.layers,
-            view: view,
-            target: this.ref
-        });
-        return this;
-    }
-
-    /**
-     * 獲得指定的圖層。
-     * @param {string} id 圖層的代號。接受的值：`POI`－興趣點位、`OSM`－OpenStreetMap。
-     * @param {boolean} addInPlace 是否直接加入圖層？可選參數。
-     * @param {object} options 額外的圖層設定，可選參數。
-     * @returns {ol.layer | null} 指定的圖層，或是不回傳東西。
-     */
-    async getLayer(id, addInPlace = false, options = {}) {
-        let val;
-        let layer;
-        const layerId = `layer${id}`;
-        switch (id) {
-            // 200m 網格
-            case 'GRID':
-                val = await Fetch.features('grid');
-                layer = new ol.layer.Vector({
-                    id: layerId,
-                    source: new ol.source.Vector({
-                        features: new ol.format.GeoJSON().readFeatures(val, {
-                            dataProjection: 'EPSG:4326',
-                            featureProjection: 'EPSG:3857'
-                        })
-                    }),
-                    style: this.getStyle('grid'),
-                    type: 'overlay'
-                });
-                break;
-
-            // 卸貨車位
-            case 'LOT-CENTROID':
-                val = await Fetch.features('lot-centroid');
-                layer = new ol.layer.Vector({
-                    id: layerId,
-                    maxZoom: 16.99,
-                    minZoom: 13,
-                    source: new ol.source.Vector({
-                        features: new ol.format.GeoJSON().readFeatures(val, {
-                            dataProjection: 'EPSG:4326',
-                            featureProjection: 'EPSG:3857'
-                        })
-                    }),
-                    style: this.getStyle('lot-centroid'),
-                    type: 'overlay'
-                });
-                break;
-
-            case 'LOT-POLYGON':
-                val = await Fetch.features('lot-polygon');
-                layer = new ol.layer.Vector({
-                    id: layerId,
-                    minZoom: 17,
-                    source: new ol.source.Vector({
-                        features: new ol.format.GeoJSON().readFeatures(val, {
-                            dataProjection: 'EPSG:4326',
-                            featureProjection: 'EPSG:3857'
-                        })
-                    }),
-                    style: this.getStyle('lot-polygon'),
-                    type: 'overlay'
-                });
-                break;
-
-            // MapTiler
-            case 'MAPTILER':
-                const styleId = options.style || 'streets-v2';
-                layer = new ol.layer.Tile({
-                    id: layerId,
-                    source: new ol.source.XYZ({
-                        url: `./tiles/proxy.php?style=${styleId}&z={z}&x={x}&y={y}`,
-                        tileSize: 512,
-                        crossOrigin: 'anonymous'
-                    }),
-                    type: 'base'
-                });
-                break;
-
-            // OpenStreetMap
-            case 'OSM':
-                layer = new ol.layer.Tile({
-                    id: layerId,
-                    source: new ol.source.OSM(),
-                    type: 'base'
-                });
-                break;
-
-            // 興趣點位
-            case 'POI':
-                val = await Fetch.features('poi');
-                layer = new ol.layer.Vector({
-                    id: layerId,
-                    minZoom: 15.5,
-                    source: new ol.source.Vector({
-                        features: new ol.format.GeoJSON().readFeatures(val, {
-                            dataProjection: 'EPSG:4326',
-                            featureProjection: 'EPSG:3857'
-                        })
-                    }),
-                    style: this.getStyle('poi'),
-                    type: 'overlay'
-                });
-                break;
-
-            default:
-                throw new Error('Invalid layer id');
-        }
-
-        // 額外屬性設定
-        layer.setProperties(options, true);
-
-        if (addInPlace) {
-            this.layers.push(layer);
-        }
-
-        return Promise.resolve(layer);
-    }
-
-    /**
-     * 獲得指定圖層的樣式名稱。
-     * @param {string} name 樣式的名稱。
-     */
-    getStyle(name) {
-        switch (name) {
-            case 'grid':
-                return (feature) => {
-                    const props = feature.getProperties();
-                    const weights = collectTableData();
-                    const w = weights; // shorthand
-                    const t = selectedTime; // current time selection
-
-                    // Weighted demand = 批發*W1 + 零售*W2 + 餐飲*W3 + 郵政*W4
-                    const demand =
-                        (props['批發'] || 0) * (w['批發']?.[t] || 0) +
-                        (props['零售'] || 0) * (w['零售']?.[t] || 0) +
-                        (props['餐飲'] || 0) * (w['餐飲']?.[t] || 0) +
-                        (props['郵政'] || 0) * (w['郵政']?.[t] || 0);
-
-                    const supply = (props['供給'] || 0) * (w['供給'] || 1);
-
-                    const diff = supply - demand;
-
-                    // Clamp & normalize color scale
-                    const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
-                    const maxAbs = 50;
-                    const alpha = 0.4;
-                    const c = clamp(diff, -maxAbs, maxAbs);
-
-                    let color;
-                    if (c >= 0) {
-                    // Surplus → green
-                    const g = Math.round(255 * (c / maxAbs));
-                    color = `rgba(${255 - g}, 255, ${255 - g}, ${alpha})`;
-                    } else {
-                    // Deficit → red
-                    const r = Math.round(255 * (-c / maxAbs));
-                    color = `rgba(255, ${255 - r}, ${255 - r}, ${alpha})`;
-                    }
-
-                    return new ol.style.Style({
-                    fill: new ol.style.Fill({ color }),
-                    stroke: new ol.style.Stroke({
-                        color: '#444',
-                        width: 0.5
-                    })
-                });
-            };
-
-            case 'lot-centroid':
-                return new ol.style.Style({
-                        image: new ol.style.Circle({
-                            fill: new ol.style.Fill({color: '#24ac73'}),
-                            radius: 4,
-                            stroke: new ol.style.Stroke({
-                                color: '#F0F0F0',
-                                width: 1
-                            })
-                        }),
-                        zIndex: 5
-                    });
-
-            case 'lot-polygon':
-                return new ol.style.Style({
-                    fill: new ol.style.Fill({color: '#29db91'}),
-                    stroke: new ol.style.Stroke({
-                        color: '#FDFDFD',
-                        width: 2
-                    }),
-                    zIndex: 3
-                });
-
-            case 'poi':
-                return new ol.style.Style({
-                    image: new ol.style.Circle({
-                        fill: new ol.style.Fill({color: '#a929db'}),
-                        radius: 2,
-                        stroke: new ol.style.Stroke({
-                            color: '#F0F0F0',
-                            width: 1
-                        })
-                    }),
-                    zIndex: 1
-                });
-
-            default:
-                throw new Error('Invalid name.');
-        }
-    }
-
-    /**
-     * 將地圖從指定對象中移除。
-     * @returns {MapService} 若有需要，此方法將回傳自身。
-     */
-    removeFromRef() {
-        this.map.setTarget(null);
-        return this;
-    }
-
-    /**
-     * 設定圖層順序。
-     * @param {string} layerId 圖層名稱。
-     * @param {number} zIndex 圖層的順位。
-     */
-    setLayerOrder(layerId, zIndex) {
-        const layer = this.layers.find(l => l.get('id') === layerId);
-        if (layer) layer.setZIndex(zIndex);
-    }
-
-    /**
-     * 設定新的地圖容器。
-     * @param {string} ref 指定對象。
-     * @returns {MapService} 若有需要，此方法將回傳自身。
-     */
-    setRef(ref) {
-        this.ref = ref;
-        return this;
-    }
-
-    /**
-     * 切換基本圖層。
-     * @param {string} layerId 圖層的代號。
-     */
-    switchBaseLayer(layerId) {
-        this.layers.forEach(layer => {
-            if (layer.get('type') == 'base') {
-                const id = layer.get('id');
-                if (id) {
-                    layer.setVisible(id === layerId);
-                }
-            }
-        });
-    }
-
-    /**
-     * 切換套疊圖層。
-     * @param {string} layerId 圖層的代號。
-     */
-    toggleOverlayLayer(layerId) {
-        this.layers.forEach(layer => {
-            if (layer.get('type') == 'overlay') {
-                const id = layer.get('id');
-                if (id === layerId) {
-                    layer.setVisible(!layer.getVisible());
-                    return;
-                }
-            }
-        });
-    }
-}
-
-let selectedTime = 'morning';
-
-/**
- * @var {MapService} mapService 儲存地圖服務的物件。
- */
-let mapService = new MapService();
-
-const collectTableData = () => {
-    const data = {};
-    document.querySelectorAll("#weightTable input").forEach(input => {
-        const [category, time] = input.id.split("_");
-        if (!data[category]) data[category] = {};
-        data[category][time] = parseFloat(input.value);
-    });
-    data["供給"] = parseFloat(document.getElementById("supply").value) || 1;
-    return data;
-}
-
-const getCurrentTime = () => {
-  const sel = document.querySelector(".time-option.selected");
-  return sel ? sel.dataset.time : 'morning';
-};
-
-/**
- * 初始化的函式。
- */
-const initialize = async () => {
-    // 設定初始位置。
-    mapService.view.setCenter(ol.proj.fromLonLat([121.545, 25.04]));
-    mapService.view.setZoom(14);
-
-    // 加入基本圖層。
-    await mapService.getLayer('MAPTILER', true, {style: 'dataviz'});
-
-    // 加入套疊圖層。
-    await mapService.getLayer('GRID', true, { zIndex: 0 });
-    await mapService.getLayer('LOT-CENTROID', true, { zIndex: 2 });
-    await mapService.getLayer('LOT-POLYGON', true, { zIndex: 2 });
-    await mapService.getLayer('POI', true, { zIndex: 1 });
-
-    // 設定參照對象並渲染地圖。
-    mapService.setRef('map').addToRef();
-}
-
-const supplyHandler = () => {
-    document.getElementById("supply").addEventListener("input", refreshGridLayer);
-}
-
-const tableHandler = () => {
-    // 驗證輸入值
-    document.querySelectorAll("#weightTable input, #supply").forEach(input => {
-        input.addEventListener("input", () => {
-            const val = parseFloat(input.value);
-            if (val < 0) {
-                alert(`⚠️ 欄位 ${input.id} 的值不可為負數！`);
-                input.value = 0;
-            }
-            refreshGridLayer();
-        });
-    });
-}
-
-const timeSelectorHandler = () => {
-    document.querySelectorAll('.time-option').forEach(opt => {
-        opt.addEventListener('click', () => {
-            document.querySelectorAll('.time-option').forEach(o => o.classList.remove('active'));
-            opt.classList.add('active');
-            selectedTime = opt.dataset.time;
-            refreshGridLayer();
-        });
-    });
-}
-
-const refreshGridLayer = () => {
-  mapService.layers
-    .filter(l => l.get('id') === 'layerGRID')
-    .forEach(l => l.changed());
-};
-
-// 前端腳本入口點
-window.addEventListener('load', () => {
-    mapService = new MapService('map');
-    initialize();
-    supplyHandler();
-    tableHandler();
-    timeSelectorHandler();
-    refreshGridLayer();
+// === UI: 指標按鈕 ===
+document.querySelectorAll('.btns button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.btns button').forEach(x=>x.classList.remove('active'));
+    btn.classList.add('active');
+    currentMode = btn.dataset.mode;
+    recolor();
+    refreshLegend();
+  });
 });
+
+// === UI: 時段按鈕 ===
+document.querySelectorAll('.subbar .seg').forEach(seg=>{
+  seg.addEventListener('click', ()=>{
+    document.querySelectorAll('.subbar .seg').forEach(x=>x.classList.remove('active'));
+    seg.classList.add('active');
+    currentTime = seg.dataset.time;   // 'm' | 'a' | 'e'
+    recompute();
+  });
+});
+
+// === UI: 權重面板收合 ===
+const weightsPanel = document.getElementById('weightsPanel');
+const toggleWeights = document.getElementById('toggleWeights');
+toggleWeights.addEventListener('click', ()=>{
+  const collapsed = weightsPanel.classList.toggle('collapsed');
+  toggleWeights.setAttribute('aria-expanded', String(!collapsed));
+});
+
+// === UI: 圖層勾選 ===
+const chkLots = document.getElementById('chkLots');
+const chkPOI  = document.getElementById('chkPOI');
+chkLots.addEventListener('change', ()=>toggleLots(chkLots.checked));
+chkPOI .addEventListener('change', ()=>togglePOI (chkPOI .checked));
+
+// === 權重 ===
+const defaultWeights = {
+  wholesale_m: 1.0, wholesale_a: 0.6, wholesale_e: 0.3,
+  retail_m: 0.5,    retail_a: 1.0,    retail_e: 0.6,
+  post_m: 0.8,      post_a: 1.0,      post_e: 0.7,
+  food_m: 0.9,      food_a: 1.0,      food_e: 0.8,
+  supply: 1.0
+};
+function resetWeights(){
+  Object.entries(defaultWeights).forEach(([id, v])=>{
+    const el = document.getElementById(id) || document.getElementById('supply_weight');
+    if (el) el.value = v;
+  });
+}
+function W(id){ return parseFloat(document.getElementById(id)?.value || 0); }
+resetWeights();
+document.getElementById('resetW').addEventListener('click', ()=>{ resetWeights(); recompute(); });
+document.getElementById('applyW').addEventListener('click', ()=>{ recompute(); });
+document.getElementById('supply_weight').addEventListener('input', ()=>recompute());
+
+// === 分級 & 色盤 ===
+const thresholds = {
+  demand: [10, 30, 60, 120],
+  supply: [5,  15, 30,  60],
+  diff:   [-20, -5,  5,  20],
+  ratio:  [50, 100, 200, 400]
+};
+const colors = ['#4575b4','#a6d96a','#ffffbf','#fdae61','#d73027'];
+function getColor(val, mode){
+  const t = thresholds[mode];
+  if (val <= t[0]) return colors[0];
+  if (val <= t[1]) return colors[1];
+  if (val <= t[2]) return colors[2];
+  if (val <= t[3]) return colors[3];
+  return colors[4];
+}
+
+// === 主要格網（POST 取回 GeoJSON；屬性：批發/零售/郵政/餐飲/供給） ===
+let gridLayer = null;
+let data = null;
+
+fetch('./api/feature.php', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+  body: 'feature=grid'
+})
+  .then(r => {
+    if (!r.ok) throw new Error(`API ${r.status}`);
+    return r.json();
+  })
+  .then(json => {
+    data = json;
+    recompute();
+    gridLayer = L.geoJSON(data, {
+      style: f => ({
+        color:'#2b2b2b',
+        weight:0.2,
+        fillOpacity:0.9,
+        fillColor: getColor(f.properties[currentMode], currentMode)
+      }),
+      onEachFeature: (f, layer) => {
+        layer.bindPopup(() => {
+          const p = f.properties;
+          return `
+            <b>格網</b>：${p.Index ?? '-'}<br/>
+            需求：${fmt(p.demand)}<br/>
+            供給：${fmt(p.supply)}<br/>
+            差額：${fmt(p.diff)}<br/>
+            比率：${fmt(p.ratio)} %
+          `;
+        });
+      }
+    }).addTo(map);
+    map.fitBounds(gridLayer.getBounds(), { padding:[20,20] });
+    refreshLegend();
+  })
+  .catch(err => console.log('讀取格網失敗：', err));
+
+// === 運算（依公式 + 時段權重） ===
+function recompute(){
+  if(!data) return;
+
+  const suf = ({m:'_m', a:'_a', e:'_e'})[currentTime];
+  const sW  = W('supply_weight');
+
+  data.features.forEach(f=>{
+    const p = f.properties;
+
+    const wholesale = p['批發'] || 0;
+    const retail    = p['零售'] || 0;
+    const post      = p['郵政'] || 0;
+    const food      = p['餐飲'] || 0;
+    const supplyRaw = p['供給'] || 0;
+
+    const D =
+      wholesale * W('wholesale'+suf) +
+      retail    * W('retail'   +suf) +
+      food      * W('food'     +suf) +
+      post      * W('post'     +suf);
+
+    const S = supplyRaw * sW;
+
+    p.demand = D;
+    p.supply = S;
+    p.diff   = S - D;
+    p.ratio  = (S > 0) ? (D / S * 100) : 0;
+  });
+
+  recolor();
+  refreshLegend();
+}
+
+// 重新著色
+function recolor(){
+  if(!gridLayer) return;
+  gridLayer.eachLayer(l=>{
+    const v = l.feature.properties[currentMode];
+    l.setStyle({ fillColor: getColor(v, currentMode) });
+  });
+}
+
+// 圖例
+let legend = null;
+function refreshLegend(){
+  if(legend){ legend.remove(); legend = null; }
+  legend = L.control({position:'topright'});
+  legend.onAdd = ()=>{
+    const div = L.DomUtil.create('div','legend');
+    const t = thresholds[currentMode];
+    const nm = { demand:'需求', supply:'供給', diff:'差額', ratio:'比率 (%)' }[currentMode];
+    div.innerHTML = `<div class="title">${nm}</div>`;
+    const segs = [`≤ ${t[0]}`, `${t[0]}–${t[1]}`, `${t[1]}–${t[2]}`, `${t[2]}–${t[3]}`, `> ${t[3]}`];
+    div.innerHTML += segs.map((s,i)=>`<div><i style="background:${colors[i]}"></i>${s}</div>`).join('');
+    return div;
+  };
+  legend.addTo(map);
+}
+
+function fmt(x){
+  if (x===null || x===undefined || Number.isNaN(x)) return '-';
+  const v = Number(x);
+  if (Math.abs(v) >= 1000) return v.toFixed(0);
+  if (Math.abs(v) >= 100) return v.toFixed(1);
+  return v.toFixed(2);
+}
+
+// 額外圖層：卸貨車格（中心點）與 POI
+let lotLayer = null;
+let poiLayer = null;
+
+function toggleLots(on){
+  if (on && !lotLayer){
+    fetch('./api/feature.php', {
+      method:'POST',
+      headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body:'feature=lot-centroid'
+    })
+      .then(r=>r.json())
+      .then(json=>{
+        lotLayer = L.geoJSON(json, {
+          pointToLayer: (f,latlng)=> L.circleMarker(latlng, {
+            radius: 4, color:'#1f2937', weight:1, fillColor:'#60a5fa', fillOpacity:0.8
+          }),
+          onEachFeature: (f,l)=> l.bindTooltip(f.properties?.name || '卸貨車格', {permanent:false})
+        }).addTo(map);
+      })
+      .catch(()=>{ alert('載入卸貨車格失敗'); chkLots.checked=false; });
+  } else if(!on && lotLayer){
+    map.removeLayer(lotLayer); lotLayer = null;
+  }
+}
+
+function togglePOI(on){
+  if (on && !poiLayer){
+    fetch('./api/feature.php', {
+      method:'POST',
+      headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body:'feature=poi'
+    })
+      .then(r=>r.json())
+      .then(json=>{
+        poiLayer = L.geoJSON(json, {
+          pointToLayer: (f,latlng)=> L.circleMarker(latlng, {
+            radius: 3.5, color:'#374151', weight:1, fillColor:'#f59e0b', fillOpacity:0.8
+          }),
+          onEachFeature: (f,l)=> l.bindTooltip(f.properties?.name || '商家', {permanent:false})
+        }).addTo(map);
+      })
+      .catch(()=>{ alert('載入商家點位失敗'); chkPOI.checked=false; });
+  } else if(!on && poiLayer){
+    map.removeLayer(poiLayer); poiLayer = null;
+  }
+}
