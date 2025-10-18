@@ -1,6 +1,6 @@
 // ===== Constants =====
-FEATURE_PROVIDER = './api/feature.php';
-TILEMAP_PROVIDER = 'https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png';
+const FEATURE_PROVIDER = './api/feature.php';
+const TILEMAP_PROVIDER = 'https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png';
 
 // ====== Map setup ======
 const map = L.map('map', { zoomControl: false }).setView([25.04, 121.55], 12);
@@ -93,15 +93,41 @@ const thresholds = {
   diff:   [-20, -5,  5,  20],
   ratio:  [50, 100, 200, 400]
 };
-// Neon gradient (cool to hot)
-const colors = ['#00e5ff','#3af0ff','#9cf6ff','#ffa6f5','#ff2bd6'];
-function getColor(val, mode){
+
+const colorRamps = {
+  blues: ['#ccefff', '#99daff', '#66c2ff', '#33a3ff', '#0084ff'],
+  pinks: ['#ffdef3', '#ffb1e5', '#ff85dc', '#ff58d5', '#ff2bd5'],
+  blueToPink: ['#00eeff', '#66e0ff', '#ccefff', '#ff85dc', '#ff2bd5']
+};
+
+const getColorRamp = (mode = currentMode) => {
+  switch (mode) {
+    case 'supply':
+      return colorRamps.blues;
+
+    case 'demand':
+      return colorRamps.pinks;
+
+    case 'diff':
+      return [...colorRamps.blueToPink].reverse();
+
+    default:
+      return colorRamps.blueToPink;
+  }
+}
+
+function getColor(properties, mode = currentMode) {
+  const c = getColorRamp(mode);
   const t = thresholds[mode];
-  if (val <= t[0]) return colors[0];
-  if (val <= t[1]) return colors[1];
-  if (val <= t[2]) return colors[2];
-  if (val <= t[3]) return colors[3];
-  return colors[4];
+  const v = properties[mode];
+
+  if ((mode == 'ratio') & (properties['supply'] < 0)) return properties['demand'] > 0 ? c[0] : c[4];
+  if ((v === null) || (Number.isNaN(v))) return c[0];
+  if (v >= t[3]) return c[4];
+  if (v >= t[2]) return c[3];
+  if (v >= t[1]) return c[2];
+  if (v >= t[0]) return c[1];
+  return c[0];
 }
 
 // ====== Data & Grid ======
@@ -130,23 +156,13 @@ const fetchData = (id, name, success = () => {}, rejected = () => {}) => {
   });
 }
 
-fetchData('grid', '網格',
-  success = json => {
-    data = json;
-    // init user props
-    data.features.forEach(f=>{
-      f.properties.userFrac   = 0;
-      f.properties.userSupply = 0;
-      f.properties.userCount  = 0;
-    });
-
-    recompute();
-    gridLayer = L.geoJSON(data, {
-      style: f => ({ color:'#152033', weight:0.6, opacity:0.8, fillOpacity:0.88, fillColor: getColor(f.properties[currentMode], currentMode) }),
+const getGridLayer = () => {
+  return L.geoJSON(data, {
+      style: f => ({color:'#152033', weight:0.6, opacity:0.8, fillOpacity:0.8, fillColor: getColor(f.properties) }),
       onEachFeature: (f, layer) => {
         // Hover glow & elevate
-        layer.on('mouseover', function(){ this.setStyle({ weight:1.6, color:'#7afcff', fillOpacity:0.96 }); this.bringToFront(); });
-        layer.on('mouseout',  function(){ this.setStyle({ weight:0.6, color:'#152033', fillOpacity:0.88 }); });
+        layer.on('mouseover', function(){ this.setStyle({ weight:1.6, color:'#7afcff' }); });
+        layer.on('mouseout',  function(){ this.setStyle({ weight:0.6, color:'#152033' }); });
 
         layer.bindPopup(()=>{
           const p = f.properties;
@@ -163,7 +179,21 @@ fetchData('grid', '網格',
             </div>`;
         });
       }
-    }).addTo(map);
+  }).addTo(map);
+};
+
+fetchData('grid', '網格',
+  success = json => {
+    data = json;
+    // init user props
+    data.features.forEach(f=>{
+      f.properties.userFrac   = 0;
+      f.properties.userSupply = 0;
+      f.properties.userCount  = 0;
+    });
+
+    recompute();
+    gridLayer = getGridLayer();
 
     map.fitBounds(gridLayer.getBounds(), { padding:[20,20] });
     refreshLegend();
@@ -176,24 +206,7 @@ fetchData('grid', '網格',
 function setGridVisible(on){
   if (on){
     if (!gridLayer && data){
-      gridLayer = L.geoJSON(data, {
-        style: f => ({ color:'#152033', weight:0.6, opacity:0.8, fillOpacity:0.88, fillColor: getColor(f.properties[currentMode], currentMode) }),
-        onEachFeature: (f, layer)=>{
-          layer.on('mouseover', function(){ this.setStyle({ weight:1.6, color:'#7afcff', fillOpacity:0.96 }); this.bringToFront(); });
-          layer.on('mouseout',  function(){ this.setStyle({ weight:0.6, color:'#152033', fillOpacity:0.88 }); });
-          layer.bindPopup(()=>{
-            const p = f.properties; const sW=W('supply_weight'); const frac=p.userFrac||0;
-            return `<div style="font-size:12px; line-height:1.35">
-              <div style="font-weight:700; letter-spacing:.03em; margin-bottom:4px">網格：${p.Index ?? '-'}</div>
-              <div>需求：<b>${fmt(p.demand)}</b></div>
-              <div>供給：<b>${fmt(p.supply)}</b> <small style="color:#9fb7cc">＝(原始 ${fmt(p['供給']||0)} + 使用者 ${fmt(frac)}×8) × 權重 ${fmt(sW)}</small></div>
-              <div>使用者 buffer 覆蓋比例：${fmt(frac)}；未加權供給：${fmt(p.userSupply||0)}</div>
-              <div>差額：<b style="color:${p.diff>=0?'#58ff9c':'#ff6d6d'}">${fmt(p.diff)}</b></div>
-              <div>比率：<b>${fmt(p.ratio)} %</b></div>
-            </div>`;
-          });
-        }
-      }).addTo(map);
+      gridLayer = getGridLayer();
       recolor();
     } else if (gridLayer && !map.hasLayer(gridLayer)) { gridLayer.addTo(map); recolor(); }
     refreshLegend();
@@ -226,8 +239,11 @@ function recompute(){
     const userSupply = (p.userFrac || 0) * 8;  // 未加權
     const S = (supplyRaw + userSupply) * sW;   // 再乘供給權重
 
-    p.demand = D; p.supply = S; p.userSupply = userSupply;
-    p.diff   = S - D; p.ratio = (S > 0) ? (D / S * 100) : 0;
+    p.demand     = D;
+    p.supply     = S;
+    p.userSupply = userSupply;
+    p.diff       = S - D;
+    p.ratio      = S > 0 ? (D / S * 100) : (D > 0 ? Infinity : 0);
   });
 
   recolor();
@@ -237,22 +253,31 @@ function recompute(){
 function recolor(){
   if(!gridLayer) return;
   gridLayer.eachLayer(l=>{
-    const v = l.feature.properties[currentMode];
-    l.setStyle({ fillColor: getColor(v, currentMode) });
+    l.setStyle({ fillColor: getColor(l.feature.properties) });
   });
 }
 
 // ====== Legend ======
 let legendEl = null;
 function refreshLegend(){
-  if (legendEl){ legendEl.remove(); legendEl = null; }
+  if (legendEl) {
+    legendEl.remove();
+    legendEl = null;
+  }
+
   const t = thresholds[currentMode];
-  const nm = { demand:'需求', supply:'供給', diff:'差額', ratio:'比率 (%)' }[currentMode];
+  const nm = { demand: '需求', supply: '供給', diff: '差額', ratio: '比率 (%)' }[currentMode];
+  const c = getColorRamp();
+
   const div = document.createElement('div');
   div.className = 'legend glass legend-left';
-  div.innerHTML = `<div class="title">${nm}</div>` +
+
+  div.innerHTML =
+    `<div class="title">${nm}</div>` +
     [`≤ ${t[0]}`, `${t[0]}–${t[1]}`, `${t[1]}–${t[2]}`, `${t[2]}–${t[3]}`, `> ${t[3]}`]
-      .map((s,i)=>`<div><i style="background:${colors[i]}"></i>${s}</div>`).join('');
+      .map((s, i) => `<div><i style="background:${c[i]}"></i>${s}</div>`)
+      .join('');
+
   map.getContainer().appendChild(div);
   legendEl = div;
 }

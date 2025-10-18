@@ -53,7 +53,7 @@ html, body { height: 100%; margin: 0; background: radial-gradient(1200px 700px a
 .brand h1 { margin:0; font-size: 14px; letter-spacing:.08em; font-weight:700; color:#dff9ff; text-shadow: 0 0 12px rgba(122,252,255,.25); }
 
 .mode-switch {
-  display:flex; gap:8px; padding:8px; border-radius: var(--radius); align-items:center;
+  display:flex; gap:8px; padding:8px; border-radius: var(--radius); align-items:center; justify-content: center; width: 16em;
 }
 .mode-switch .btn { position: relative; border:1px solid #2b3146; background: linear-gradient(180deg, #131827, #0e1421); color:#cfe9ff; padding:8px 12px; font-size:12px; border-radius: 10px; cursor:pointer; transition:.18s ease; }
 .mode-switch .btn:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(0,0,0,.35), inset 0 0 0 1px rgba(122,252,255,.18); }
@@ -70,7 +70,7 @@ html, body { height: 100%; margin: 0; background: radial-gradient(1200px 700px a
 .seg.active { background:linear-gradient(180deg, #ff6ad5, #be3aa1); color:#fff; border-color:transparent; box-shadow: 0 4px 16px rgba(255,106,213,.35); }
 
 /* ====== Left Dock: Editor ====== */
-.dock-left { position: absolute; left: 14px; bottom: 14px; z-index: 1000; display:flex; gap:10px; }
+.dock-left { position: absolute; left: auto; right: 14px; top: 74px; z-index: 1000; display:flex; gap:10px; }
 .btn-ghost { border:1px dashed #2b3147; background: rgba(10,14,23,.5); color:#cfe4ff; padding:10px 12px; border-radius: 12px; cursor:pointer; font-size:12px; transition:.2s; }
 .btn-ghost:hover { border-style: solid; border-color:#3d4c72; box-shadow: 0 6px 20px rgba(0,0,0,.35), inset 0 0 0 1px rgba(122,252,255,.14); transform: translateY(-1px); }
 .btn-ghost.active { color:#071016; background: linear-gradient(180deg, #7afcff, #00d6e3); border-color: transparent; }
