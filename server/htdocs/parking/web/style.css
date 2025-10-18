@@ -19,8 +19,23 @@ html, body { height: 100%; margin: 0; }
 .subbar .label { font-size:12px; color:#374151; }
 .subbar .seg { border:1px solid #e5e7eb; background:#fff; padding:4px 10px; border-radius:999px; }
 .subbar .seg.active { background:#111827; color:#fff; border-color:#111827; }
-.toggles { display:flex; gap:12px; font-size:12px; }
+.toggles { display:flex; gap:12px; font-size:12px; margin-bottom:8px; }
 .toggles input { margin-right:6px; }
+.editor { display:flex; gap:8px; }
+.editor .ghost {
+  background:#fff; border:1px dashed #9ca3af; color:#374151; padding:6px 10px; border-radius:8px; font-size:12px; cursor:pointer;
+}
+/* 啟用新增模式的按鈕外觀：深色底＋白字 */
+.editor .ghost.active {
+  border-color:#111827;
+  background:#111827;
+  color:#fff;
+}
+
+/* 新增模式：讓地圖點擊穿透所有 Leaflet 向量圖層（格網/點圖層） */
+#map.adding-lots .leaflet-interactive {
+  pointer-events: none;
+}
 
 /* 權重面板（可收合） */
 .weights {
@@ -28,7 +43,7 @@ html, body { height: 100%; margin: 0; }
   background: #fff; padding: 0; border-radius: 12px;
   box-shadow: 0 2px 12px rgba(0,0,0,.18);
   font-family: system-ui, -apple-system, "Noto Sans TC", sans-serif;
-  font-size: 12px; max-width: 460px; box-sizing: border-box;
+  font-size: 12px; max-width: 480px; box-sizing: border-box;
 }
 .weights-header {
   display:flex; align-items:center; justify-content:space-between;
@@ -48,7 +63,7 @@ html, body { height: 100%; margin: 0; }
   display:flex; align-items:center; gap:8px; margin: 2px 0 12px 0;
 }
 .supply-row input {
-  width: 120px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:8px; text-align:center; font-size:12px;
+  width: 140px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:8px; text-align:center; font-size:12px;
 }
 
 .wtable {

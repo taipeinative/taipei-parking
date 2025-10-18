@@ -8,15 +8,25 @@
   <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Turf.js：做點在多邊形判斷 -->
+  <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
 
   <link rel="stylesheet" href="./web/style.css" />
 </head>
 <body>
   <div id="map"></div>
 
+  
   <!-- 左上：主工具列 -->
   <div class="toolbar">
     <h3>顯示欄位</h3>
+
+  <div class="toggles">
+    <label><input type="checkbox" id="chkGrid" checked /> 顯示格網</label>
+    <label><input type="checkbox" id="chkLots" /> 卸貨車格</label>
+    <label><input type="checkbox" id="chkPOI" /> 商家點位</label>
+  </div>
+
 
     <div class="btns">
       <button data-mode="demand" class="active">需求</button>
@@ -32,9 +42,10 @@
       <button data-time="e" class="seg">晚</button>
     </div>
 
-    <div class="toggles">
-      <label><input type="checkbox" id="chkLots" /> 卸貨車格</label>
-      <label><input type="checkbox" id="chkPOI" /> 商家點位</label>
+    <!-- 新增：點編輯 -->
+    <div class="editor">
+      <button id="btnAddLots" class="ghost">➕ 新增車格</button>
+      <button id="btnClearLots" class="ghost">🧹 清空</button>
     </div>
   </div>
 
@@ -48,7 +59,7 @@
     <div class="weights-body">
       <!-- 供給權重 -->
       <div class="supply-row">
-        <label for="supply_weight">卸貨車格每小時服務車次：</label>
+        <label for="supply_weight">卸貨車格每小時服務車次（每個點）：</label>
         <input type="number" id="supply_weight" step="0.1" value="1" />
       </div>
 
@@ -84,7 +95,7 @@
         <button id="applyW" class="primary">套用權重</button>
         <button id="resetW">重設</button>
       </div>
-      <small class="hint">D=批發×W+零售×W+餐飲×W+郵政×W；S=供給×W(供給)。切換時段會套用對應權重。</small>
+      <small class="hint">D=批發×W+零售×W+餐飲×W+郵政×W；S=供給×W(供給) + 使用者新增車格數×每點車次。</small>
     </div>
   </div>
 
