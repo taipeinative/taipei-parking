@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>臺北市卸貨車格供需分析</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Turf.js -->
+  <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    :root{
+    --bg: #0a0b10;
+    --panel: rgba(18,22,33,.6);
+    --panel-strong: rgba(18,22,33,.9);
+    --glass: rgba(255,255,255,.06);
+    --stroke: rgba(255,255,255,.08);
+    --txt: #e5f2ff;
+    --muted: #8aa0b3;
+    --accent: #7afcff;       /* 青色霓虹 */
+    --accent-2: #ff6ad5;     /* 粉紫霓虹 */
+    --accent-3: #ffe45e;     /* 霓虹黃 */
+    --ok: #58ff9c;
+    --warn: #ffb86b;
+    --err: #ff5d5d;
+    --shadow-neon: 0 0 8px rgba(122,252,255,.7), 0 0 18px rgba(122,252,255,.35);
+    --radius: 16px;
+    --radius-sm: 10px;
+    --blur: saturate(140%) blur(8px);
+    --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    --sans: Inter, system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans TC", Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    }
+
+    html, body { height: 100%; margin: 0; background: radial-gradient(1200px 700px at 20% 10%, #0f1322 0%, #0a0b10 60%, #07080d 100%); color: var(--txt); font-family: var(--sans); }
+    #map { height: 100%; width: 100%; filter: saturate(115%); }
+
+    /* ====== Global micro-interactions ====== */
+    * { box-sizing: border-box; }
+    ::selection { background: rgba(122,252,255,.25); color: #e8fbff; }
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-thumb { background: linear-gradient(180deg, #2a3246, #1a1f2d); border: 1px solid #2f3a53; border-radius: 10px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+
+    .glass {
+    background: var(--panel);
+    border: 1px solid var(--stroke);
+    backdrop-filter: var(--blur);
+    -webkit-backdrop-filter: var(--blur);
+    box-shadow: 0 6px 22px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.05);
+    }
+
+    .neon { box-shadow: var(--shadow-neon); }
+    .chip { display:inline-flex; align-items:center; gap:8px; padding:6px 10px; border-radius:999px; border:1px solid #223048; background: rgba(20,26,38,.6); color: var(--txt); font-size:12px; }
+    .kbd { font-family: var(--mono); font-size: 11px; border:1px solid #2a3348; background:#121722; color:#b8ccff; padding:2px 6px; border-radius:6px; }
+
+    /* ====== Left Dock ====== */
+    .dock-left { position: absolute; left: 14px; top: 12px; z-index: 1000; display: flex; flex-direction: column; gap: 10px; width: 20em; }
+    .dock-left .container { display: flex; flex-direction: column; gap: 5px; border-radius: var(--radius); }
+
+    /* ----- Brand ----- */
+    .brand { display:flex; align-items:center; gap:10px; padding:8px 12px; border-radius: var(--radius); }
+    .brand .logo { width: 18px; height: 18px; border-radius: 3px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); box-shadow: var(--shadow-neon); }
+    .brand h1 { margin:0; font-size: 14px; letter-spacing:.08em; font-weight:700; color:#dff9ff; text-shadow: 0 0 12px rgba(122,252,255,.25); }
+
+    /* ----- Mode Switcher ----- */
+    .mode-switch { display:flex; gap:8px; padding:8px; border-radius: var(--radius); align-items:center; font-size:12px; }
+    .mode-switch .btn { position: relative; border:1px solid #2b3146; background: linear-gradient(180deg, #131827, #0e1421); color:#cfe9ff; padding:8px 12px; border-radius: 10px; cursor:pointer; transition:.18s ease; }
+    .mode-switch .btn:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(0,0,0,.35), inset 0 0 0 1px rgba(122,252,255,.18); }
+    .mode-switch .btn.active { color:#071016; background: linear-gradient(180deg, #7afcff, #00d6e3); border-color: transparent; text-shadow:none; }
+
+    /* ----- Time Segments ----- */
+    .segments {  z-index: 1000; display:flex; gap:6px; padding:8px; border-radius: var(--radius); }
+    .seg { border:1px solid #2a3147; background: #0f1525; color:#cde7ff; padding:6px 10px; border-radius: 999px; cursor:pointer; font-size:12px; transition:.18s; }
+    .seg:hover { transform: translateY(-1px); }
+    .seg.active { background:linear-gradient(180deg, #ff6ad5, #be3aa1); color:#fff; border-color:transparent; box-shadow: 0 4px 16px rgba(255,106,213,.35); }
+
+    /* ----- Layer Toggler ----- */
+    .toggles { display:flex; gap:10px; padding:8px; border-radius: var(--radius); }
+    .toggles label { display:flex; align-items:center; gap:8px; font-size:12px; padding:6px 10px; border-radius: 999px; border:1px dashed #2b3248; cursor: pointer; background: rgba(10,14,23,.7); }
+    .toggles input { accent-color: var(--accent); }
+
+    /* ----- Editor ----- */
+    .btn-ghost { border:1px dashed #2b3147; background: rgba(10,14,23,.5); color:#cfe4ff; padding:10px 12px; border-radius: 12px; cursor:pointer; font-size:12px; transition:.2s; }
+    .btn-ghost:hover { border-style: solid; border-color:#3d4c72; box-shadow: 0 6px 20px rgba(0,0,0,.35), inset 0 0 0 1px rgba(122,252,255,.14); transform: translateY(-1px); }
+    .btn-ghost.active { color:#071016; background: linear-gradient(180deg, #7afcff, #00d6e3); border-color: transparent; }
+
+    /* ====== Right Dock: Weights Panel ====== */
+    .weights { position: absolute; right: 14px; bottom: 14px; z-index: 1000; width: 520px; max-width: calc(100vw - 28px); border-radius: var(--radius); overflow: hidden; }
+    .weights-header { display:flex; align-items:center; justify-content:space-between; padding:12px 14px; cursor:pointer; user-select:none; }
+    .weights-title { display:flex; align-items:center; gap:10px; }
+    .chev { width: 10px; height: 10px; border-right: 2px solid #98c9ff; border-bottom: 2px solid #98c9ff; transform: rotate(45deg); transition: transform .2s ease; opacity:.9; }
+    .weights.collapsed .chev { transform: rotate(-135deg); }
+
+    .weights-body { padding: 10px 14px 14px; display:block; }
+    .weights.collapsed .weights-body { display:none; }
+
+    .note { color: var(--muted); font-size:11px; margin-top:6px; }
+
+    .supply-row { display:flex; align-items:center; gap:10px; margin: 4px 0 12px 0; }
+    .supply-row input { width: 160px; padding:8px 10px; border:1px solid #2b3147; border-radius: 12px; background:#0b0f1b; color:#dff0ff; font-size:12px; text-align:center; }
+
+    .wtable { display:grid; grid-template-columns: 1.2fr repeat(3, 120px); gap: 8px 10px; align-items:center; }
+    .wtable .wh { font-weight:700; text-align:center; color:#bfe8ff; }
+    .wtable .wl { font-weight:600; color:#daecff; }
+    .wtable input { width:100%; padding:8px 10px; border:1px solid #2b3147; border-radius: 12px; background:#0b0f1b; color:#eaf5ff; font-size:12px; text-align:center; }
+
+    .actions { margin-top:12px; display:flex; gap:10px; }
+    .btn { border:1px solid #2b3147; background:#0f1525; color:#dff2ff; padding:10px 12px; border-radius: 12px; cursor:pointer; font-size:12px; transition:.18s; }
+    .btn:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(0,0,0,.35); }
+    .btn.primary { background: linear-gradient(180deg, #ffe45e, #ffba15); color:#1a1400; border-color: transparent; box-shadow: 0 6px 16px rgba(255,186,21,.25); }
+
+    /* ====== Legend (glass neon) ====== */
+    .legend { background: var(--panel-strong); border: 1px solid var(--stroke); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur); padding:10px 12px; line-height:1.35; border-radius: 12px; box-shadow: 0 6px 20px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.04); color:#d4ecff; }
+    .legend .title { font-weight:800; margin-bottom:6px; letter-spacing:.04em; text-transform: uppercase; font-size:12px; color:#9fdfff; }
+    .legend i { width:14px; height:14px; display:inline-block; margin-right:8px; border-radius:3px; vertical-align:-2px; box-shadow: 0 0 0 1px rgba(0,0,0,.35), 0 0 8px rgba(255,255,255,.06) inset; }
+    .legend-right { position: absolute; right: 14px; top: 14px; z-index: 1200; }
+
+    /* ====== Info Box ====== */
+    .info-box { position: absolute; left: 14px; bottom: 14px; z-index: 1100; width: 300px; max-height: 280px; padding: 10px 12px; border-radius: var(--radius); backdrop-filter: var(--blur); background: var(--panel); border: 1px solid var(--stroke); box-shadow: 0 6px 22px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.05); color: var(--txt); overflow-y: auto; transition: opacity .25s ease, transform .25s ease; }
+    .info-box.hidden { opacity: 0; pointer-events: none; transform: translateY(10px); }
+    .info-header { display: flex; justify-content: space-between; align-items: center; font-weight: 600; font-size: 13px; color: #bfe8ff; margin-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,.05); padding-bottom: 4px; }
+
+    #infoClose { border: none; background: transparent; color: #9fdfff; cursor: pointer; font-size: 13px; line-height: 1; transition: color .2s ease; }
+    #infoClose:hover { color: var(--accent); }
+
+    .info-content p, .info-content div { margin: 4px 0; font-size: 12px; line-height: 1.4; color: #d8ecff; }
+    .info-content b { color: var(--accent); }
+
+    .info-chart { height: 120px; margin-top: 10px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.05); }
+    .info-chart canvas { width: 100%; height: 100%; }
+    .no-data { text-align: center; color: var(--muted); font-size: 13px; padding: 40px 0; letter-spacing: 0.05em; animation: fadeIn .3s ease; }
+
+    /* Hover focus for polygons */
+    .pulse { animation: pulse 1.2s ease-out infinite; }
+    @keyframes pulse { 0%{ box-shadow: 0 0 0 0 rgba(122,252,255,.4);} 100%{ box-shadow: 0 0 0 12px rgba(122,252,255,0);} }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* Add-mode: allow clicks to pass through polygons */
+    #map.adding-lots .leaflet-interactive { pointer-events: none; }
+
+    /* Reduce padding for compact display */
+    .mode-switch .btn, .segments .seg, .toggles label, .dock-actions .btn-ghost {
+    padding: 6px 10px;
+    font-size: 12px;
+    }
+
+    /* Responsive small */
+    @media (max-width: 880px) {
+        .dock-left {
+            width: auto;
+            gap: 6px;
+        }
+
+        /* Collapse mode-switch & segments & toggles into a scrollable mini panel */
+        .mode-switch, .segments, .toggles {
+            flex-direction: row;
+            flex-wrap: wrap;
+            overflow-x: auto;
+            max-width: 180px;
+        }
+        .mode-switch .btn, .segments .seg, .toggles label {
+            flex: 1 0 auto;
+        }
+
+        /* Legend scales down */
+        .legend-right {
+            font-size: 11px;
+            right: 6px;
+            top: 6px;
+        }
+
+        .dock-actions {
+            flex-direction: row;
+            gap: 4px;
+        }
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <!-- Left dock: controls -->
+  <div class="dock-left">
+    <div class="brand glass">
+      <div class="logo"></div>
+      <h1>臺北市卸貨車格供需分析</h1>
+    </div>
+
+    <div class="container">
+      <div class="mode-switch glass" role="group" aria-label="顯示模式">
+        <button class="btn active" data-mode="demand" title="需求 (D)">需求</button>
+        <button class="btn" data-mode="supply" title="供給 (S)">供給</button>
+        <button class="btn" data-mode="diff"   title="差額 (S−D)">差額</button>
+        <button class="btn" data-mode="ratio"  title="比率 (D/S)">比率</button>
+      </div>
+
+      <div class="segments glass">
+        <button class="seg active" data-time="m" title="早 (04–12)">早</button>
+        <button class="seg" data-time="a" title="中 (12–20)">中</button>
+        <button class="seg" data-time="e" title="晚 (20–04)">晚</button>
+        <span class="chip" title="快捷鍵：1=早,2=中,3=晚" style="margin-top:4px;">時段快捷 <span class="kbd">1</span> <span class="kbd">2</span> <span class="kbd">3</span></span>
+      </div>
+
+      <div class="toggles glass">
+        <label><input type="checkbox" id="chkGrid" checked /> 網格</label>
+        <label><input type="checkbox" id="chkLots" /> 卸貨車格</label>
+        <label><input type="checkbox" id="chkPOI" /> 商家點位</label>
+      </div>
+
+      <div class="dock-actions">
+        <button id="btnAddLots" class="btn-ghost">➕ 新增車格（A）</button>
+        <button id="btnClearLots" class="btn-ghost">🧹 清空</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Weights panel -->
+  <div class="weights glass" id="weightsPanel">
+    <div class="weights-header" id="toggleWeights" role="button" aria-expanded="true">
+      <div class="weights-title">
+        <span class="chip">⚙️ 權重（四業 × 三時段）</span>
+        <span class="chip" title="套用權重 (Enter)"><span class="kbd">Enter</span> 套用</span>
+      </div>
+      <span class="chev"></span>
+    </div>
+    <div class="weights-body">
+      <div class="supply-row">
+        <label for="supply_weight">卸貨車格每小時服務車次（每個點）：</label>
+        <input type="number" id="supply_weight" step="0.1" value="1" />
+      </div>
+
+      <div class="wtable">
+        <div class="wh"></div>
+        <div class="wh">早<br><small>04–12</small></div>
+        <div class="wh">中<br><small>12–20</small></div>
+        <div class="wh">晚<br><small>20–04</small></div>
+
+        <div class="wl">批發</div>
+        <div><input type="number" step="0.1" id="wholesale_m" value="1"></div>
+        <div><input type="number" step="0.1" id="wholesale_a" value="0.6"></div>
+        <div><input type="number" step="0.1" id="wholesale_e" value="0.3"></div>
+
+        <div class="wl">零售</div>
+        <div><input type="number" step="0.1" id="retail_m" value="0.5"></div>
+        <div><input type="number" step="0.1" id="retail_a" value="1.0"></div>
+        <div><input type="number" step="0.1" id="retail_e" value="0.6"></div>
+
+        <div class="wl">郵政</div>
+        <div><input type="number" step="0.1" id="post_m" value="0.8"></div>
+        <div><input type="number" step="0.1" id="post_a" value="1.0"></div>
+        <div><input type="number" step="0.1" id="post_e" value="0.7"></div>
+
+        <div class="wl">餐飲</div>
+        <div><input type="number" step="0.1" id="food_m" value="0.9"></div>
+        <div><input type="number" step="0.1" id="food_a" value="1.0"></div>
+        <div><input type="number" step="0.1" id="food_e" value="0.8"></div>
+      </div>
+
+      <div class="actions">
+        <button id="applyW" class="btn primary">套用權重</button>
+        <button id="resetW" class="btn">重設</button>
+      </div>
+      <div class="note">D=批發×W+零售×W+餐飲×W+郵政×W；S=供給×W(供給) + 使用者新增車格數×每點車次。</div>
+    </div>
+  </div>
+
+  <!-- Info box -->
+  <div id="infoBox" class="glass info-box hidden">
+    <div class="info-header">
+      <span id="infoTitle">網格資訊</span>
+      <button id="infoClose" title="關閉">✕</button>
+    </div>
+    <div id="infoContent" class="info-content">
+      <p>點擊網格以檢視資訊</p>
+    </div>
+    <div class="info-chart">
+      <canvas id="vacancyChart"></canvas>
+    </div>
+  </div>
+
+  <script defer>
+    // ===== Constants =====
+    const FEATURE_PROVIDER = './api/feature.php';
+    const TILEMAP_PROVIDER = 'https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png';
+
+    // ====== Map setup ======
+    const map = L.map('map', { zoomControl: false }).setView([25.04, 121.55], 12);
+    L.tileLayer(TILEMAP_PROVIDER, {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> &copy; CARTO', maxZoom: 19
+    }).addTo(map);
+
+    // ====== State ======
+    let currentMode = 'demand'; // demand | supply | diff | ratio
+    let currentTime = 'm';      // m | a | e
+    let addMode = false;        // add-lot mode
+    let selectedLayer = null;
+
+    // ====== Helper: Button Group Handler ======
+    /**
+     * Attaches a click handler to a group of buttons to manage an active state.
+     * @param {string} selector - CSS selector for the button group (e.g., '.mode-switch .btn')
+     * @param {(btn: HTMLElement) => void} callback - Function to run on click, receives the clicked button.
+     */
+    function setupButtonGroup(selector, callback) {
+        const buttons = document.querySelectorAll(selector);
+        buttons.forEach(btn => {
+            btn.addEventListener('click', () => {
+            buttons.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            callback(btn);
+            });
+        });
+    }
+
+    // ====== Controls: modes ======
+    setupButtonGroup('.mode-switch .btn', (btn) => {
+    currentMode = btn.dataset.mode;
+    recolor();
+    refreshLegend();
+    });
+
+    // ====== Controls: time segments ======
+    setupButtonGroup('.segments .seg', (btn) => {
+    currentTime = btn.dataset.time;
+    recompute();
+    });
+
+    // ====== Controls: Keyboard shortcuts ======
+    window.addEventListener('keydown', (e) => {
+    const k = e.key.toLowerCase();
+    const selector = {
+        '1': `.segments .seg[data-time="m"]`,
+        '2': `.segments .seg[data-time="a"]`,
+        '3': `.segments .seg[data-time="e"]`,
+        'a': '#btnAddLots',
+        'd': '.mode-switch .btn[data-mode="demand"]',
+        's': '.mode-switch .btn[data-mode="supply"]',
+        'f': '.mode-switch .btn[data-mode="diff"]',
+        'r': '.mode-switch .btn[data-mode="ratio"]',
+        'escape': '#infoClose',
+        'enter': '#applyW'
+    }[k];
+
+    if (selector) {
+        document.querySelector(selector)?.click();
+    }
+    });
+
+    // ====== Toggle groups ======
+    const weightsPanel = document.getElementById('weightsPanel');
+    const toggleWeights = document.getElementById('toggleWeights');
+    toggleWeights.addEventListener('click', () => {
+    const collapsed = weightsPanel.classList.toggle('collapsed');
+    toggleWeights.setAttribute('aria-expanded', String(!collapsed));
+    });
+
+    const chkGrid = document.getElementById('chkGrid');
+    const chkLots = document.getElementById('chkLots');
+    const chkPOI = document.getElementById('chkPOI');
+
+    if (chkGrid) chkGrid.addEventListener('change', () => setGridVisible(chkGrid.checked));
+    if (chkLots) chkLots.addEventListener('change', () => toggleFetchLayer(chkLots.checked, lotLayerState, lotLayerConfig));
+    if (chkPOI) chkPOI.addEventListener('change', () => toggleFetchLayer(chkPOI.checked, poiLayerState, poiLayerConfig));
+
+    // ====== Weights ======
+    const defaultWeights = {
+    wholesale_m: 1.0, wholesale_a: 0.6, wholesale_e: 0.3,
+    retail_m: 0.5, retail_a: 1.0, retail_e: 0.6,
+    post_m: 0.8, post_a: 1.0, post_e: 0.7,
+    food_m: 0.9, food_a: 1.0, food_e: 0.8,
+    supply: 1.0
+    };
+    function resetWeights() {
+    Object.entries(defaultWeights).forEach(([id, v]) => {
+        const elId = id === 'supply' ? 'supply_weight' : id;
+        const el = document.getElementById(elId);
+        if (el) el.value = v;
+    });
+    }
+    function W(id) { return parseFloat(document.getElementById(id)?.value || 0); }
+    resetWeights();
+
+    document.getElementById('resetW').addEventListener('click', () => { resetWeights(); recompute(); });
+    document.getElementById('applyW').addEventListener('click', () => { recompute(); });
+    document.getElementById('supply_weight').addEventListener('input', () => { recompute(); });
+
+    // ====== Theming thresholds & palette (neon) ======
+    const thresholds = {
+    demand: [10, 30, 60, 120],
+    supply: [5, 15, 30, 60],
+    diff: [-20, -5, 5, 20],
+    ratio: [50, 100, 200, 400]
+    };
+
+    const colorRamps = {
+    blues: ['#ccefff', '#99daff', '#66c2ff', '#33a3ff', '#0084ff'],
+    pinks: ['#ffdef3', '#ffb1e5', '#ff85dc', '#ff58d5', '#ff2bd5'],
+    blueToPink: ['#00eeff', '#66e0ff', '#ccefff', '#ff85dc', '#ff2bd5']
+    };
+
+    const getColorRamp = (mode = currentMode) => {
+    const rampMap = {
+        'supply': colorRamps.blues,
+        'demand': colorRamps.pinks,
+        'diff': [...colorRamps.blueToPink].reverse(),
+    };
+    return rampMap[mode] || colorRamps.blueToPink;
+    }
+
+    function getColor(properties, mode = currentMode) {
+    const c = getColorRamp(mode);
+    const t = thresholds[mode];
+    const v = properties[mode];
+
+    if ((mode == 'ratio') & (properties['supply'] < 0)) return properties['demand'] > 0 ? c[0] : c[4];
+    if ((v === null) || (Number.isNaN(v))) return c[0];
+
+    // This finds the index of the largest threshold that 'v' is greater than or equal to.
+    // v < t[0] -> index -1 -> c[0]
+    // v >= t[0] -> index 0  -> c[1]
+    // v >= t[3] -> index 3  -> c[4]
+    const index = t.findLastIndex(threshold => v >= threshold);
+    return c[index + 1];
+    }
+
+    // ====== Data & Grid ======
+    let gridLayer = null;
+    let data = null;
+
+    /**
+     * Fetch the resource from the provider API.
+     * @param {'grid' | 'lot' | 'poi'} id The id of the resource.
+     * @param {string} name The name of the resource. 
+     * @param {(json: any) => void} success The callback function on success.
+     * @param {(reason: any) => void | PromiseLike<void>} rejected The callback function on rejected.
+     */
+    const fetchData = (id, name, success = () => { }, rejected = () => { }) => {
+    fetch(FEATURE_PROVIDER, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: `feature=${id}` })
+        .then(r => {
+        if (!r.ok) {
+            throw new Error(`API: ${r.status}`);
+        }
+        return r.json();
+        })
+        .then(success)
+        .catch(err => {
+        console.log(`讀取${name}失敗：`, err);
+        rejected(err);
+        });
+    }
+
+    function showGridInfo(layer) {
+    const f = layer.feature;
+    const p = f.properties;
+    const sW = W('supply_weight');
+    const frac = p.userFrac || 0;
+    const title = `網格 ${p.Index ?? '-'}`;
+    const html = `
+        <div>需求：<b>${fmt(p.demand)}</b></div>
+        <div>供給：<b>${fmt(p.supply)}</b> <small style="color:#9fb7cc">＝(原始 ${fmt(p['供給']||0)} + 使用者 ${fmt(frac)}×8) × 權重 ${fmt(sW)}</small></div>
+        <div>差額：<b>${fmt(p.diff)}</b></div>
+        <div>比率：<b>${p.ratio === Infinity ? "－" : fmt(p.ratio)}%</b></div>
+    `;
+    showInfoBox(title, html);
+    updateVacancyChart(p);
+    }
+
+    const getGridLayer = () => {
+    const defaultGridStyle = { weight: 0.6, color: '#152033' };
+    const highlightGridStyle = { weight: 1.6, color: '#7afcff' };
+    return L.geoJSON(data, {
+        style: f => ({ ...defaultGridStyle, opacity:0.8, fillOpacity:0.8, fillColor: getColor(f.properties) }), // Use default style
+        onEachFeature: (f, layer) => {
+            layer.on('mouseover', function(){ this.setStyle(highlightGridStyle); });
+            layer.on('mouseout',  function(){ if (selectedLayer !== this) { this.setStyle(defaultGridStyle); }});
+            layer.on('click', (e) => {
+            if (selectedLayer && selectedLayer !== layer) {
+                selectedLayer.setStyle(defaultGridStyle);
+            }
+            selectedLayer = layer;
+            selectedLayer.setStyle(highlightGridStyle);
+            showGridInfo(layer);
+            L.DomEvent.stopPropagation(e);
+            })
+        }
+    }).addTo(map);
+    };
+
+    fetchData('grid', '網格',
+    success = json => {
+        data = json;
+        // init user props
+        data.features.forEach(f => {
+        f.properties.userFrac = 0;
+        f.properties.userSupply = 0;
+        f.properties.userCount = 0;
+        });
+
+        recompute();
+        gridLayer = getGridLayer();
+        map.fitBounds(gridLayer.getBounds(), { padding: [20, 20] });
+        refreshLegend();
+        restoreUserLots();
+    }
+    )
+
+    function setGridVisible(on) {
+    if (on) {
+        if (!gridLayer && data) {
+        gridLayer = getGridLayer();
+        recolor();
+        } else if (gridLayer && !map.hasLayer(gridLayer)) { gridLayer.addTo(map); recolor(); }
+        refreshLegend();
+    } else {
+        if (gridLayer && map.hasLayer(gridLayer)) map.removeLayer(gridLayer);
+        if (legendEl) { legendEl.remove(); legendEl = null; }
+    }
+    }
+
+    // ====== Compute ======
+    function recompute() {
+    if (!data) return;
+    const suf = ({ m: '_m', a: '_a', e: '_e' })[currentTime];
+    const sW = W('supply_weight');
+
+    data.features.forEach(f => {
+        const p = f.properties;
+        const wholesale = p['批發'] || 0;
+        const retail = p['零售'] || 0;
+        const post = p['郵政'] || 0;
+        const food = p['餐飲'] || 0;
+        const supplyRaw = p['供給'] || 0;
+
+        const D =
+        wholesale * W('wholesale' + suf) +
+        retail * W('retail' + suf) +
+        food * W('food' + suf) +
+        post * W('post' + suf);
+
+        const userSupply = (p.userFrac || 0) * 8;  // 未加權
+        const S = (supplyRaw + userSupply) * sW;   // 再乘供給權重
+
+        p.demand = D;
+        p.supply = S;
+        p.userSupply = userSupply;
+        p.diff = S - D;
+        p.ratio = S > 0 ? (D / S * 100) : (D > 0 ? Infinity : 0);
+    });
+
+    recolor();
+    refreshLegend();
+    }
+
+    function recolor() {
+    if (!gridLayer) return;
+    gridLayer.eachLayer(l => {
+        l.setStyle({ fillColor: getColor(l.feature.properties) });
+    });
+    }
+
+    // ====== Legend ======
+    let legendEl = null;
+    function refreshLegend() {
+    if (legendEl) {
+        legendEl.remove();
+        legendEl = null;
+    }
+
+    const t = thresholds[currentMode];
+    const nm = { demand: '需求', supply: '供給', diff: '差額', ratio: '比率 (%)' }[currentMode];
+    const c = getColorRamp();
+
+    const div = document.createElement('div');
+    div.className = 'legend glass legend-right';
+
+    div.innerHTML =
+        `<div class="title">${nm}</div>` +
+        [`≤ ${t[0]}`, `${t[0]}–${t[1]}`, `${t[1]}–${t[2]}`, `${t[2]}–${t[3]}`, `> ${t[3]}`]
+        .map((s, i) => `<div><i style="background:${c[i]}"></i>${s}</div>`)
+        .join('');
+
+    map.getContainer().appendChild(div);
+    legendEl = div;
+    }
+
+    function fmt(x) {
+    if (x === null || x === undefined || Number.isNaN(x)) return '-';
+    const v = Number(x);
+    if (Math.abs(v) >= 1000) return v.toFixed(0);
+    if (Math.abs(v) >= 100) return v.toFixed(1);
+    return v.toFixed(2);
+    }
+
+    /* ====== User-added lot points ====== */
+    let userLotsLayer = L.layerGroup().addTo(map);
+    let userLots = []; // { id, marker }
+    const btnAddLots = document.getElementById('btnAddLots');
+    const btnClearLots = document.getElementById('btnClearLots');
+
+    btnAddLots.addEventListener('click', () => {
+    addMode = !addMode;
+    btnAddLots.classList.toggle('active', addMode);
+    btnAddLots.textContent = addMode ? '🖱 點地圖以新增（再次按 A / 點此退出）' : '➕ 新增車格（A）';
+    map.getContainer().classList.toggle('adding-lots', addMode);
+    if (addMode) map.closePopup();
+    });
+
+    if (btnClearLots) {
+    btnClearLots.addEventListener('click', () => {
+        if (!confirm('確定清空所有使用者新增的車格點？')) return;
+        userLots.forEach(pt => userLotsLayer.removeLayer(pt.marker));
+        userLots = [];
+        saveUserLots();
+        updateUserSupplyFromPoints();
+        recompute();
+    });
+    }
+
+    map.on('click', (e) => {
+    if (addMode) {
+        const m = createDraggableMarker(e.latlng);
+        infoBox.classList.add('hidden');
+        userLotsLayer.addLayer(m);
+        userLots.push({ id: genId(), marker: m });
+        saveUserLots();
+        updateUserSupplyFromPoints();
+        recompute();
+    }
+
+    infoBox.classList.add('hidden');
+    if (selectedLayer) {
+        selectedLayer.setStyle({ weight: 0.6, color: '#152033' });
+        selectedLayer = null;
+    }
+    });
+
+    function createDraggableMarker(latlng) {
+    const marker = L.marker(latlng, { draggable: true, opacity: 0.98, riseOnHover: true });
+    marker.bindTooltip(`新增的車格（右鍵刪除，拖曳可移動）`, { permanent: false });
+    marker.on('dragend', () => {
+        updateUserSupplyFromPoints();
+        recompute();
+        if (selectedLayer) { showGridInfo(selectedLayer); }
+    });
+    marker.on('contextmenu', () => {
+        userLots = userLots.filter(pt => pt.marker !== marker);
+        userLotsLayer.removeLayer(marker);
+        saveUserLots();
+        updateUserSupplyFromPoints();
+        recompute();
+        if (selectedLayer) {
+        showGridInfo(selectedLayer);
+        }
+    });
+    // Subtle neon ring
+    const ring = L.circleMarker(latlng, { radius: 10, color: '#7afcff', weight: 1, opacity: .7, fillOpacity: 0 }).addTo(userLotsLayer);
+    marker.on('move', e => ring.setLatLng(e.latlng));
+    marker.on('remove', () => userLotsLayer.removeLayer(ring));
+    return marker;
+    }
+
+    function genId() { return Math.random().toString(36).slice(2, 10); }
+
+    // 50m buffer ∩ grid, distribute by area fraction
+    function updateUserSupplyFromPoints() {
+    if (!data) return;
+    data.features.forEach(f => { f.properties.userFrac = 0; f.properties.userSupply = 0; f.properties.userCount = 0; });
+    if (userLots.length === 0) return;
+
+    userLots.forEach(pt => {
+        const ll = pt.marker.getLatLng();
+        const ptTurf = turf.point([ll.lng, ll.lat]);
+        const buf = turf.buffer(ptTurf, 50, { units: 'meters' });
+        const bufArea = turf.area(buf);
+        if (!bufArea || bufArea <= 0) return;
+
+        data.features.forEach(f => {
+        const poly = f.geometry; if (!poly) return;
+        const inter = turf.intersect(buf, poly);
+        if (inter) {
+            const interArea = turf.area(inter);
+            if (interArea > 0) {
+            const frac = interArea / bufArea;
+            f.properties.userFrac += frac;
+            f.properties.userCount += 1;
+            }
+        }
+        });
+    });
+    data.features.forEach(f => { f.properties.userSupply = (f.properties.userFrac || 0) * 8; });
+    }
+
+    function saveUserLots() {
+    const arr = userLots.map(pt => { const ll = pt.marker.getLatLng(); return { id: pt.id, lat: ll.lat, lng: ll.lng }; });
+    localStorage.setItem('userLots', JSON.stringify(arr));
+    }
+
+    function restoreUserLots() {
+    const raw = localStorage.getItem('userLots'); if (!raw) return;
+    try {
+        const arr = JSON.parse(raw);
+        arr.forEach(rec => {
+        const m = createDraggableMarker({ lat: rec.lat, lng: rec.lng });
+        userLotsLayer.addLayer(m);
+        userLots.push({ id: rec.id || genId(), marker: m });
+        });
+        updateUserSupplyFromPoints();
+        recompute();
+    } catch (e) { console.warn('無法解析 userLots：', e); }
+    }
+
+    /* ===== Infobox ===== */
+    const infoBox = document.getElementById("infoBox");
+    const infoTitle = document.getElementById("infoTitle");
+    const infoContent = document.getElementById("infoContent");
+    const infoClose = document.getElementById("infoClose");
+
+    infoClose.addEventListener("click", () => {
+    infoBox.classList.add("hidden");
+    if (selectedLayer) {
+        selectedLayer.setStyle({ weight: 0.6, color: '#152033' }); // Use default style
+        selectedLayer = null;
+    }
+    });
+
+    function showInfoBox(title, htmlContent) {
+    infoTitle.textContent = title;
+    infoContent.innerHTML = htmlContent;
+    infoBox.classList.remove("hidden");
+    }
+
+    /* ----- Chart ----- */
+    let vacancyChart = null;
+
+    function updateVacancyChart(props) {
+    const chartContainer = document.querySelector(".info-chart");
+    const canvas = document.getElementById("vacancyChart");
+    if (!chartContainer || !canvas) return;
+
+    const times = ["早", "中", "晚"];
+    const values = [props["早"], props["中"], props["晚"]].map(v =>
+        typeof v === "number" && !isNaN(v) ? v * 100 : null
+    );
+
+    const hasData = values.some(v => v !== null);
+
+    // Remove any existing "no data" notice
+    const oldMsg = chartContainer.querySelector(".no-data");
+    if (oldMsg) oldMsg.remove();
+
+    // Destroy any old chart instance
+    if (vacancyChart) {
+        vacancyChart.destroy();
+        vacancyChart = null;
+    }
+
+    if (!hasData) {
+        // Hide canvas, show fallback text
+        canvas.style.display = "none";
+        const msg = document.createElement("div");
+        msg.className = "no-data";
+        msg.textContent = "無歷史資料";
+        chartContainer.appendChild(msg);
+        return;
+    }
+
+    // If valid data, ensure canvas is visible
+    canvas.style.display = "block";
+
+    const ctx = canvas.getContext("2d");
+    vacancyChart = new Chart(ctx, {
+        type: "line",
+        data: {
+        labels: times,
+        datasets: [{
+            label: "平均車格空位率 (%)",
+            data: values,
+            borderColor: "#7afcff",
+            backgroundColor: "rgba(122,252,255,0.15)",
+            pointBackgroundColor: "#7afcff",
+            pointRadius: 4,
+            tension: 0.35,
+        }]
+        },
+        options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { display: false },
+            tooltip: {
+            backgroundColor: "rgba(15,20,35,0.9)",
+            titleColor: "#dffbff",
+            bodyColor: "#aeeaff",
+            borderColor: "#7afcff",
+            borderWidth: 1,
+            callbacks: {
+                label: ctx => `${ctx.parsed.y?.toFixed(1) ?? '-'} %`
+            }
+            }
+        },
+        scales: {
+            x: {
+            grid: { color: "rgba(255,255,255,0.05)" },
+            ticks: { color: "#bfe8ff", font: { size: 11 } }
+            },
+            y: {
+            beginAtZero: true,
+            grid: { color: "rgba(255,255,255,0.05)" },
+            ticks: {
+                color: "#bfe8ff",
+                font: { size: 11 },
+                callback: v => v + "%"
+            },
+            title: {
+                display: true,
+                text: "空位率 (%)",
+                color: "#9fdfff",
+                font: { size: 11 }
+            }
+            }
+        }
+        }
+    });
+    }
+
+    /* ====== Extra data layers ====== */
+
+    // Store layer state in objects so they can be passed by reference
+    let lotLayerState = { layer: null };
+    let poiLayerState = { layer: null };
+
+    /**
+     * Manages toggling a data layer that is fetched on demand.
+     * @param {boolean} isOn - Whether to turn the layer on or off.
+     * @param {{layer: L.Layer | null}} layerState - An object to hold the layer reference.
+     * @param {object} config - Configuration for fetching and creating the layer.
+     * @param {string} config.fetchId - The ID to pass to fetchData ('lot', 'poi').
+     * @param {string} config.name - The display name for error logging.
+     * @param {(json: any) => L.Layer} config.createLayer - Function to create the L.geoJSON layer from JSON.
+     * @param {HTMLInputElement} [config.checkbox] - Optional checkbox to uncheck on failure.
+     */
+    function toggleFetchLayer(isOn, layerState, config) {
+    const { fetchId, name, createLayer, checkbox } = config;
+
+    if (isOn && !layerState.layer) {
+        fetchData(fetchId, name,
+        success = json => {
+            layerState.layer = createLayer(json).addTo(map);
+        },
+        rejected = () => {
+            if (checkbox) checkbox.checked = false;
+        }
+        );
+    } else if (!isOn && layerState.layer) {
+        map.removeLayer(layerState.layer);
+        layerState.layer = null;
+    }
+    }
+
+    // Configuration for the 'lot' layer
+    const lotLayerConfig = {
+    fetchId: 'lot',
+    name: '卸貨車格',
+    checkbox: chkLots,
+    createLayer: (json) => L.geoJSON(json, {
+        pointToLayer: (f, latlng) => L.circleMarker(latlng, { radius: 4, color: '#0af', weight: 1, fillColor: '#7afcff', fillOpacity: 0.9 }),
+        onEachFeature: (f, l) => l.bindTooltip(f.properties?.name || '卸貨車格', { permanent: false })
+    })
+    };
+
+    // Configuration for the 'poi' layer
+    const poiLayerConfig = {
+    fetchId: 'poi',
+    name: '商家點位',
+    checkbox: chkPOI,
+    createLayer: (json) => L.geoJSON(json, {
+        pointToLayer: (f, latlng) => L.circleMarker(latlng, { radius: 3.5, color: '#ff6ad5', weight: 1, fillColor: '#ff9adf', fillOpacity: 0.85 }),
+        onEachFeature: (f, l) => l.bindTooltip(f.properties?.name || '商家', { permanent: false })
+    })
+    };
+  </script>
+</body>
+</html>
