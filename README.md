@@ -1,6 +1,6 @@
 # Taipei-Parking
 
-臺北市路邊卸貨停車格供需分析暨搜尋系統。
+臺北市路邊卸貨停車格供需分析系統。
 
 ## 指令行介面
 
@@ -91,3 +91,42 @@ python script/extract.py -v
 ```
 
 輸出的 GeoJSON 檔案名為 `realtime-lot.geojson`，各圖徵的欄位和[北市好停車爬蟲](#北市好停車爬蟲)產生的 GeoJSON 檔案一致。
+
+## 展示圖臺
+
+展示影片：
+
+https://www.youtube.com/watch?v=b_DjMk-42F0
+
+### 功能介紹
+
+![介面說明](./doc/Interface.png)
+
+* 左側面板
+  * 數據選擇：選擇網格資料顯示類型（停車**需求**、停車**供給**、供需**差額**、供需**比率**）
+  * 時間選擇：選擇展示時段（早：04-12、中：12-20、晚：20-04）
+  * 資訊選擇：選擇圖層顯示狀態，包含網格、商家點位與卸貨車格點位。
+  * 新增車格工具箱：按下「新增車格」按鈕後可在地圖上新增卸貨車格，而「清空」按鈕則可清空地圖上所有標記。
+* 右側面板
+  * 圖例：目前網格資料的圖例。
+  * 權重：供使用者設定各類型商家點位於三時段之需求車次，及各卸貨車格每小時服務車次數。
+* 左下角視窗
+  * 數據細節：展示網格根據目前權重估計的需求、供給等資訊數值。
+  * 空位率：展示網格內卸貨車格實際於三時段之空位率。
+
+### 系統架構
+
+![系統架構](./doc/Slide-Framework.png)
+
+* 前端：使用原生 JavaScript，搭配 [Chart.js](https://github.com/chartjs/Chart.js)、[Leaflet](https://github.com/Leaflet/Leaflet)、[Turf](https://github.com/Turfjs/turf) 等套件。
+* 後端：Apache HTTP Server，由 [XAMPP](https://www.apachefriends.org/index.html) 提供。
+* 資料分析：運用包括 [GeoPandas](https://github.com/geopandas/geopandas)、[Pandas](https://github.com/pandas-dev/pandas) 等 Python 套件產製圖資。
+
+### 指標計算
+
+![需求計算](./doc/Slide-Demand.png)
+![需求計算補充](./doc/Slide-Demand-Calculation.png)
+![供給計算](./doc/Slide-Supply.png)
+![分析網格](./doc/Slide-Grid-Creation.png)
+![網格計算](./doc/Slide-Grid-Calculation.png)
+![網格計算補充](./doc/Slide-Index-Calculation.png)
